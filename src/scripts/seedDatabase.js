@@ -7,7 +7,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 const { TourismPoint, TourismRoute, ServiceProvider } = require('../models');
-const { tourismPoints, serviceProviders, tourismRoutes } = require('./data/sampleData');
+const { tourismPoints, serviceProviders, tourismRoutes } = require('./sampleData');
 
 const seedDatabase = async () => {
   try {

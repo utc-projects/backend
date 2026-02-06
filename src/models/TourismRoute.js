@@ -26,6 +26,23 @@ const tourismRouteSchema = new mongoose.Schema({
     type: Number,
     default: 0, // in kilometers
   },
+  roadDuration: {
+    type: Number, // in minutes
+  },
+  isRoadRoute: {
+    type: Boolean,
+    default: false,
+  },
+  geometry: {
+    type: {
+      type: String,
+      enum: ['LineString'],
+      default: 'LineString',
+    },
+    coordinates: {
+      type: [[Number]], // Array of [lng, lat]
+    },
+  },
   // Educational Links
   linkedModule: {
     type: String,
@@ -63,7 +80,37 @@ function calculateDistance(coord1, coord2) {
   return R * c; // Distance in km
 }
 
-// Middleware: Auto-calculate totalDistance before saving
+// Helper function: Fetch OSRM geometry
+async function getRoutingGeometry(coordinates) {
+  try {
+    const OSRM_API = 'https://router.project-osrm.org';
+    const coordString = coordinates.map(c => `${c[0]},${c[1]}`).join(';');
+    const url = `${OSRM_API}/route/v1/driving/${coordString}?overview=full&geometries=geojson`;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+      return {
+        geometry: data.routes[0].geometry,
+        distance: data.routes[0].distance / 1000, // km
+        duration: data.routes[0].duration / 60, // minutes
+      };
+    }
+    return null;
+  } catch (error) {
+    console.warn('OSRM fetching failed:', error.message);
+    return null;
+  }
+}
+
+// Middleware: Auto-calculate totalDistance and Geometry before saving
 tourismRouteSchema.pre('save', async function() {
   if (this.isModified('points') && this.points.length > 1) {
     try {
@@ -76,25 +123,44 @@ tourismRouteSchema.pre('save', async function() {
       const pointsMap = new Map();
       populatedPoints.forEach(p => pointsMap.set(p._id.toString(), p));
       
-      // Calculate total distance following the order
-      let totalDist = 0;
-      for (let i = 0; i < this.points.length - 1; i++) {
-        const currentPoint = pointsMap.get(this.points[i].toString());
-        const nextPoint = pointsMap.get(this.points[i + 1].toString());
-        
-        if (currentPoint && nextPoint && 
-            currentPoint.location?.coordinates && 
-            nextPoint.location?.coordinates) {
-          totalDist += calculateDistance(
-            currentPoint.location.coordinates,
-            nextPoint.location.coordinates
-          );
+      // Get chronological coordinates
+      const coordinates = [];
+      for (const pointId of this.points) {
+        const point = pointsMap.get(pointId.toString());
+        if (point?.location?.coordinates) {
+          coordinates.push(point.location.coordinates);
         }
       }
-      
-      this.totalDistance = Math.round(totalDist * 10) / 10; // Round to 1 decimal
+
+      if (coordinates.length >= 2) {
+        // 1. Calculate straight line distance (fallback)
+        let straightDist = 0;
+        for (let i = 0; i < coordinates.length - 1; i++) {
+          straightDist += calculateDistance(coordinates[i], coordinates[i+1]);
+        }
+        
+        // 2. Try to get road geometry
+        const routingData = await getRoutingGeometry(coordinates);
+        
+        if (routingData) {
+          this.geometry = routingData.geometry;
+          this.totalDistance = Math.round(routingData.distance * 10) / 10;
+          this.roadDuration = Math.round(routingData.duration);
+          this.isRoadRoute = true;
+        } else {
+          // Fallback to straight line
+          this.geometry = {
+            type: 'LineString',
+            coordinates: coordinates
+          };
+          this.totalDistance = Math.round(straightDist * 10) / 10;
+          this.roadDuration = null;
+          this.isRoadRoute = false;
+        }
+      }
     } catch (error) {
-      console.error('Error calculating distance:', error);
+      console.error('Error calculating route geometry:', error);
+      // Don't block save on error, just log it
     }
   }
 });

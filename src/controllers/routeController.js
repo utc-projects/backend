@@ -6,50 +6,6 @@ const TourismPoint = require('../models/TourismPoint');
 const OSRM_API = 'https://router.project-osrm.org';
 
 // Helper: Get road route geometry from OSRM
-async function getRoutingGeometry(coordinates) {
-  try {
-    // Format coordinates for OSRM: lng,lat;lng,lat;...
-    const coordString = coordinates.map(c => `${c[0]},${c[1]}`).join(';');
-    
-    const url = `${OSRM_API}/route/v1/driving/${coordString}?overview=full&geometries=geojson`;
-    
-    // Add timeout to fetch (3 seconds)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    
-    try {
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId); // Clear timeout on success
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-        return {
-          geometry: data.routes[0].geometry,
-          distance: data.routes[0].distance / 1000, // Convert to km
-          duration: data.routes[0].duration / 60, // Convert to minutes
-        };
-      }
-    } catch (fetchError) {
-      clearTimeout(timeoutId); // Clear timeout on error
-      if (fetchError.name === 'AbortError') {
-        console.warn('OSRM request timed out, falling back to straight lines');
-      } else {
-        throw fetchError; // Re-throw other errors to be caught by outer catch
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('OSRM routing error:', error.message);
-    return null;
-  }
-}
-
 // @desc    Get all routes
 // @route   GET /api/routes
 // @access  Public
@@ -92,28 +48,15 @@ exports.getRouteGeoJSON = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy tuyến du lịch' });
     }
 
-    // Get coordinates from points
-    const coordinates = route.points
-      .filter(p => p.location?.coordinates)
-      .map(p => p.location.coordinates);
-
-    // Try to get actual road geometry from OSRM
-    let geometry;
-    let roadDistance = null;
-    let roadDuration = null;
-
-    if (coordinates.length >= 2) {
-      const routingResult = await getRoutingGeometry(coordinates);
-      
-      if (routingResult) {
-        geometry = routingResult.geometry;
-        roadDistance = Math.round(routingResult.distance * 10) / 10;
-        roadDuration = Math.round(routingResult.duration);
-      }
-    }
-
-    // Fallback to straight lines if OSRM fails
-    if (!geometry) {
+    // Use cached geometry or fallback to straight lines
+    let geometry = route.geometry;
+    
+    // Fallback if no geometry cached (e.g. old data)
+    if (!geometry || !geometry.coordinates || geometry.coordinates.length === 0) {
+      const coordinates = route.points
+        .filter(p => p.location?.coordinates)
+        .map(p => p.location.coordinates);
+        
       geometry = {
         type: 'LineString',
         coordinates: coordinates,
@@ -128,15 +71,15 @@ exports.getRouteGeoJSON = async (req, res) => {
         routeName: route.routeName,
         description: route.description,
         duration: route.duration,
-        totalDistance: roadDistance || route.totalDistance,
-        roadDuration: roadDuration, // Driving time in minutes
+        totalDistance: route.totalDistance,
+        roadDuration: route.roadDuration, 
         pointsCount: route.points.length,
         points: route.points.map(p => ({
           _id: p._id,
           name: p.name,
           category: p.category,
         })),
-        isRoadRoute: !!roadDistance, // Flag to indicate if this is actual road routing
+        isRoadRoute: route.isRoadRoute || false,
       },
     };
 
@@ -154,28 +97,15 @@ exports.getAllRoutesGeoJSON = async (req, res) => {
     const routes = await TourismRoute.find()
       .populate('points', 'name location category');
 
-    const features = await Promise.all(routes.map(async (route) => {
-      const coordinates = route.points
-        .filter(p => p.location?.coordinates)
-        .map(p => p.location.coordinates);
-
-      // Try to get actual road geometry
-      let geometry;
-      let roadDistance = null;
-      let roadDuration = null;
-
-      if (coordinates.length >= 2) {
-        const routingResult = await getRoutingGeometry(coordinates);
-        
-        if (routingResult) {
-          geometry = routingResult.geometry;
-          roadDistance = Math.round(routingResult.distance * 10) / 10;
-          roadDuration = Math.round(routingResult.duration);
-        }
-      }
-
-      // Fallback to straight lines
-      if (!geometry) {
+    const features = routes.map((route) => {
+      // Use cached geometry or fallback
+      let geometry = route.geometry;
+      
+      if (!geometry || !geometry.coordinates || geometry.coordinates.length === 0) {
+        const coordinates = route.points
+          .filter(p => p.location?.coordinates)
+          .map(p => p.location.coordinates);
+          
         geometry = {
           type: 'LineString',
           coordinates: coordinates,
@@ -190,13 +120,13 @@ exports.getAllRoutesGeoJSON = async (req, res) => {
           routeName: route.routeName,
           description: route.description,
           duration: route.duration,
-          totalDistance: roadDistance || route.totalDistance,
-          roadDuration: roadDuration,
+          totalDistance: route.totalDistance,
+          roadDuration: route.roadDuration,
           pointsCount: route.points.length,
-          isRoadRoute: !!roadDistance,
+          isRoadRoute: route.isRoadRoute || false,
         },
       };
-    }));
+    });
 
     res.json({
       type: 'FeatureCollection',
