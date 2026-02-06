@@ -28,7 +28,21 @@ const toGeoJSON = (points) => ({
 // @access  Public
 exports.getAllPoints = async (req, res) => {
   try {
-    const points = await TourismPoint.find().populate('routeCount').sort({ name: 1 });
+    const { search } = req.query;
+    let query = {};
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query = {
+        $or: [
+          { name: searchRegex },
+          { category: searchRegex },
+          { description: searchRegex }
+        ]
+      };
+    }
+
+    const points = await TourismPoint.find(query).populate('routeCount').sort({ name: 1 });
     res.json(toGeoJSON(points));
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });

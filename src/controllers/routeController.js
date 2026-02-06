@@ -13,20 +13,39 @@ async function getRoutingGeometry(coordinates) {
     
     const url = `${OSRM_API}/route/v1/driving/${coordString}?overview=full&geometries=geojson`;
     
-    const response = await fetch(url);
-    const data = await response.json();
+    // Add timeout to fetch (3 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     
-    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-      return {
-        geometry: data.routes[0].geometry,
-        distance: data.routes[0].distance / 1000, // Convert to km
-        duration: data.routes[0].duration / 60, // Convert to minutes
-      };
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId); // Clear timeout on success
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        return {
+          geometry: data.routes[0].geometry,
+          distance: data.routes[0].distance / 1000, // Convert to km
+          duration: data.routes[0].duration / 60, // Convert to minutes
+        };
+      }
+    } catch (fetchError) {
+      clearTimeout(timeoutId); // Clear timeout on error
+      if (fetchError.name === 'AbortError') {
+        console.warn('OSRM request timed out, falling back to straight lines');
+      } else {
+        throw fetchError; // Re-throw other errors to be caught by outer catch
+      }
     }
     
     return null;
   } catch (error) {
-    console.error('OSRM routing error:', error);
+    console.error('OSRM routing error:', error.message);
     return null;
   }
 }

@@ -33,12 +33,21 @@ const toGeoJSON = (providers) => ({
 // @access  Public
 exports.getAllProviders = async (req, res) => {
   try {
-    const { serviceType, subType, recommended } = req.query;
+    const { serviceType, subType, recommended, search } = req.query;
     const filter = {};
     
     if (serviceType) filter.serviceType = serviceType;
     if (subType) filter.subType = subType;
     if (recommended === 'true') filter.isRecommended = true;
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      filter.$or = [
+        { name: searchRegex },
+        { address: searchRegex },
+        { description: searchRegex }
+      ];
+    }
 
     const providers = await ServiceProvider.find(filter)
       .populate('linkedPoints', 'name')
