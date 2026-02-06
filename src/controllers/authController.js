@@ -21,7 +21,7 @@ exports.register = async (req, res) => {
       role: role === 'admin' ? 'student' : role, // Prevent self-assign admin
       studentId,
       department,
-      classes: req.body.classes || [],
+
     });
 
     // Generate token
@@ -208,7 +208,6 @@ exports.updateProfile = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find()
-      .populate('classes', 'name code')
       .sort({ createdAt: -1 });
     res.json({
       success: true,
@@ -294,7 +293,7 @@ exports.createUser = async (req, res) => {
       role: role || 'student',
       studentId,
       department,
-      classes: req.body.classes || [],
+      department,
     });
 
     res.status(201).json({
@@ -307,7 +306,6 @@ exports.createUser = async (req, res) => {
         roleLabel: user.roleLabel,
         department: user.department,
         isActive: user.isActive,
-        classes: user.classes || [],
         createdAt: user.createdAt,
       },
     });
@@ -338,7 +336,7 @@ exports.updateUser = async (req, res) => {
     if (department) updateData.department = department;
     if (studentId !== undefined) updateData.studentId = studentId;
     if (isActive !== undefined) updateData.isActive = isActive;
-    if (req.body.classes) updateData.classes = req.body.classes;
+
 
     const user = await User.findByIdAndUpdate(
       req.params.id,

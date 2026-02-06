@@ -43,10 +43,7 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
-  classes: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Class',
-  }],
+
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

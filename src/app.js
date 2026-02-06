@@ -28,8 +28,6 @@ const {
   routeRoutes, 
   providerRoutes,
   authRoutes,
-  assignmentRoutes,
-  submissionRoutes,
   noteRoutes,
   permissionRoutes,
   changeRequestRoutes,
@@ -39,13 +37,9 @@ app.use('/api/points', pointRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/assignments', assignmentRoutes);
-app.use('/api/submissions', submissionRoutes);
 app.use('/api/change-requests', changeRequestRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/permissions', permissionRoutes);
-app.use('/api/courses', require('./routes').courseRoutes);
-app.use('/api/classes', require('./routes').classRoutes);
 app.use('/api/estimates', require('./routes').estimateRoutes);
 
 
