@@ -21,9 +21,34 @@ const seedData = async () => {
     try {
         await connectDB();
 
+        // 0. Create Lecturers
+        console.log('Creating Lecturers...');
+        const lecturerData = [
+            { name: 'Giảng viên A', email: 'lecturer1@test.com' },
+            { name: 'Giảng viên B', email: 'lecturer2@test.com' }
+        ];
+
+        const lecturers = [];
+        for (const data of lecturerData) {
+            let user = await User.findOne({ email: data.email });
+            if (!user) {
+                user = await User.create({
+                    name: data.name,
+                    email: data.email,
+                    password: 'password123',
+                    role: 'lecturer',
+                    department: 'Khoa Du lịch'
+                });
+                console.log(`Created lecturer: ${user.name}`);
+            } else {
+                console.log(`Lecturer ${user.name} already exists.`);
+            }
+            lecturers.push(user);
+        }
+
         // 1. Create Courses (Học phần)
         console.log('Creating Courses...');
-        await Course.deleteMany({ code: { $in: ['TOUR101', 'GEO202'] } }); // Clear existing test data if any
+        await Course.deleteMany({}); // Clear all courses
 
         const courses = await Course.create([
             {
@@ -44,7 +69,8 @@ const seedData = async () => {
 
         // 2. Create Classes (Lớp học phần)
         console.log('Creating Classes...');
-        await Class.deleteMany({ code: { $in: ['TOUR101-K60', 'TOUR101-K61-CLC', 'GEO202-N01', 'GEO202-N02', 'GEO202-K62'] } });
+        // Delete old classes to ensure clean slate for these codes
+        await Class.deleteMany({}); // Clear all classes
 
         // Find courses to link
         const course1 = courses.find(c => c.code === 'TOUR101');
@@ -55,6 +81,7 @@ const seedData = async () => {
                 name: 'Tổng quan Du lịch - K60',
                 code: 'TOUR101-K60',
                 course: course1._id,
+                lecturer: lecturers[0]._id,
                 semester: '1',
                 year: '2023-2024',
                 description: 'Lớp đại trà K60'
@@ -63,6 +90,7 @@ const seedData = async () => {
                 name: 'Tổng quan Du lịch - K61 CLC',
                 code: 'TOUR101-K61-CLC',
                 course: course1._id,
+                lecturer: lecturers[1]._id,
                 semester: '1',
                 year: '2024-2025',
                 description: 'Lớp Chất lượng cao K61'
@@ -71,6 +99,7 @@ const seedData = async () => {
                 name: 'Địa lý Du lịch - Nhóm 1',
                 code: 'GEO202-N01',
                 course: course2._id,
+                lecturer: lecturers[0]._id,
                 semester: '2',
                 year: '2023-2024',
                 description: 'Nhóm thực hành 1'
@@ -79,17 +108,10 @@ const seedData = async () => {
                 name: 'Địa lý Du lịch - Nhóm 2',
                 code: 'GEO202-N02',
                 course: course2._id,
+                lecturer: lecturers[1]._id,
                 semester: '2',
                 year: '2023-2024',
                 description: 'Nhóm thực hành 2'
-            },
-            {
-                name: 'Địa lý Du lịch - K62',
-                code: 'GEO202-K62',
-                course: course2._id,
-                semester: '1',
-                year: '2025-2026',
-                description: 'Lớp khóa mới'
             }
         ]);
 
@@ -103,8 +125,8 @@ const seedData = async () => {
             { name: 'Nguyễn Văn A', email: 'student1@test.com', classes: [classes[0]._id, classes[2]._id] },
             { name: 'Trần Thị B', email: 'student2@test.com', classes: [classes[0]._id, classes[3]._id] },
             { name: 'Lê Văn C', email: 'student3@test.com', classes: [classes[1]._id] },
-            { name: 'Phạm Thị D', email: 'student4@test.com', classes: [classes[1]._id, classes[4]._id] },
-            { name: 'Hoàng Văn E', email: 'student5@test.com', classes: [classes[4]._id] },
+            { name: 'Phạm Thị D', email: 'student4@test.com', classes: [classes[1]._id, classes[3]._id] }, // Changed from classes[4] to classes[3]
+            { name: 'Hoàng Văn E', email: 'student5@test.com', classes: [classes[2]._id] }, // Changed from classes[4] to classes[2]
         ];
 
         for (const data of studentData) {
