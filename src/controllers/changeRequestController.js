@@ -57,16 +57,46 @@ exports.approveRequest = async (req, res) => {
       return res.status(400).json({ message: 'Yêu cầu này đã được xử lý' });
     }
 
+
     const Model = getModelByType(request.type);
     if (!Model) {
       return res.status(400).json({ message: 'Loại dữ liệu không hợp lệ' });
     }
 
+    // Sanitize and parse data
+    let cleanData = { ...request.data };
+    
+    // Remove system fields
+    const systemFields = ['_id', 'createdAt', 'updatedAt', '__v'];
+    systemFields.forEach(field => delete cleanData[field]);
+
+    // Parse JSON strings (common issue when sending FormData/mixed types)
+    Object.keys(cleanData).forEach(key => {
+      if (typeof cleanData[key] === 'string') {
+        const value = cleanData[key].trim();
+        // Check if value looks like a JSON object or array
+        if ((value.startsWith('{') && value.endsWith('}')) || 
+            (value.startsWith('[') && value.endsWith(']'))) {
+          try {
+            cleanData[key] = JSON.parse(value);
+          } catch (e) {
+            // Keep original string if parse fails
+          }
+        }
+      }
+    });
+
+    // Special handling for location if needed
+    if (cleanData.location && typeof cleanData.location === 'string') {
+       try { cleanData.location = JSON.parse(cleanData.location); } catch (e) {}
+    }
+
+
     // Apply changes based on action
     if (request.action === 'create') {
-      await Model.create(request.data);
+      await Model.create(cleanData);
     } else if (request.action === 'update') {
-      await Model.findByIdAndUpdate(request.targetId, request.data);
+      await Model.findByIdAndUpdate(request.targetId, cleanData);
     } else if (request.action === 'delete') {
       await Model.findByIdAndDelete(request.targetId);
     }
