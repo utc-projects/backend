@@ -27,7 +27,8 @@ router.get('/', getAllPoints);
 router.get('/:id', getPointById);
 
 // POST /api/points - create permission
-const upload = require('../middlewares/uploadMiddleware');
+const createUploadMiddleware = require('../middlewares/uploadMiddleware');
+const upload = createUploadMiddleware('points', 'point');
 const { interceptRequest } = require('../middlewares/approvalMiddleware');
 
 router.post('/', authorize('points', 'create'), upload.fields([{ name: 'images', maxCount: 5 }, { name: 'videos', maxCount: 3 }]), interceptRequest('point'), createPoint);

@@ -237,11 +237,36 @@ exports.deletePoint = async (req, res) => {
       });
     }
 
-    const point = await TourismPoint.findByIdAndDelete(pointId);
+    const point = await TourismPoint.findById(pointId);
     if (!point) {
       return res.status(404).json({ message: 'Không tìm thấy điểm du lịch' });
     }
-    res.json({ message: 'Đã xóa điểm du lịch thành công' });
+
+    // Delete associated files (images and videos)
+    const fs = require('fs');
+    
+    // Function to safely delete a file
+    const deleteFile = (filePath) => {
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        } catch (err) {
+            console.error(`Error deleting file ${filePath}:`, err);
+        }
+    };
+
+    if (point.images && point.images.length > 0) {
+        point.images.forEach(imagePath => deleteFile(imagePath));
+    }
+
+    if (point.videos && point.videos.length > 0) {
+        point.videos.forEach(videoPath => deleteFile(videoPath));
+    }
+
+    await TourismPoint.findByIdAndDelete(pointId);
+    
+    res.json({ message: 'Đã xóa điểm du lịch và các tệp đính kèm thành công' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }

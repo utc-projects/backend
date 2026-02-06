@@ -14,7 +14,8 @@ const {
   updateProvider,
   deleteProvider,
 } = require('../controllers/providerController');
-const upload = require('../middlewares/uploadMiddleware');
+const createUploadMiddleware = require('../middlewares/uploadMiddleware');
+const upload = createUploadMiddleware('providers', 'provider');
 
 // All routes require authentication
 router.use(protect);

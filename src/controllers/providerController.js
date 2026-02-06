@@ -382,11 +382,35 @@ exports.updateProvider = async (req, res) => {
 // @access  Public (should be protected in production)
 exports.deleteProvider = async (req, res) => {
   try {
-    const provider = await ServiceProvider.findByIdAndDelete(req.params.id);
+    const provider = await ServiceProvider.findById(req.params.id);
     if (!provider) {
       return res.status(404).json({ message: 'Không tìm thấy nhà cung cấp' });
     }
-    res.json({ message: 'Đã xóa nhà cung cấp thành công' });
+
+    // Delete associated files (images and videos)
+    const fs = require('fs');
+    
+    // Function to safely delete a file
+    const deleteFile = (filePath) => {
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        } catch (err) {
+            console.error(`Error deleting file ${filePath}:`, err);
+        }
+    };
+
+    if (provider.images && provider.images.length > 0) {
+        provider.images.forEach(imagePath => deleteFile(imagePath));
+    }
+
+    if (provider.videos && provider.videos.length > 0) {
+        provider.videos.forEach(videoPath => deleteFile(videoPath));
+    }
+
+    await ServiceProvider.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Đã xóa nhà cung cấp và các tệp đính kèm thành công' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
