@@ -1,95 +1,167 @@
-# GTVT Hoc Tap - Backend
+# Graduation Project Backend (Backend API)
 
-This is the backend API for the GTVT Hoc Tap project, built with [Node.js](https://nodejs.org/), [Express](https://expressjs.com/), and [MongoDB](https://www.mongodb.com/). It manages user authentication, data storage for tourism points and providers, and the request approval workflow.
+API server for the Graduation Project (Đồ Án), handling tourism data, user authentication, and administrative approvals.
 
-## Features
+## Overview
 
-- **RESTful API**: Endpoints for managing users, classes, courses, points, providers, and routes.
-- **Authentication**: Secure JWT-based authentication with role-based authorization (Student, Lecturer, Admin).
-- **Data Persistence**: MongoDB with Mongoose ODM.
-- **File Uploads**: Image and video upload support using Multer.
-- **Request Management**: Logic for handling change requests and approval flows.
+This backend service manages the core data for the application, including:
+- **Tourism Points:** Detailed information about locations.
+- **Routes:** Curated travel routes connecting multiple points.
+- **Service Providers:** Local businesses offering services.
+- **Change Requests:** A workflow for users to suggest edits approved by admins.
+- **User Management:** Authentication and role management (Admin, Approver, User).
+- **Estimates:** Travel cost estimation logic.
+
+It is built with **Node.js**, **Express**, and **MongoDB**.
 
 ## Tech Stack
 
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **Database**: MongoDB (Mongoose)
-- **Auth**: JSON Web Tokens (JWT), bcryptjs
-- **File Upload**: Multer
-- **Middleware**: CORS, Dotenv
+- **Runtime:** Node.js (v18+ recommended)
+- **Framework:** Express.js (v5) -> Fast, unopinionated web framework.
+- **Database:** MongoDB (via Mongoose ODM) -> Schema-based NoSQL database.
+- **Authentication:** JWT (JSON Web Tokens) & Bcrypt -> Secure password hashing and stateless auth.
+- **File Handling:** Multer -> Handling `multipart/form-data` for image uploads.
+- **Utilities:** `dotenv`, `cors`, `nodemon`.
+
+## Prerequisites
+
+Before starting, ensure you have the following installed:
+- [Node.js](https://nodejs.org/) (v16 or higher)
+- [MongoDB](https://www.mongodb.com/try/download/community) (running locally on port `27017` by default)
 
 ## Getting Started
 
-### Prerequisites
+### 1. Clone the Repository
 
-- Node.js (v18 or higher recommended)
-- MongoDB (running locally or a cloud instance like MongoDB Atlas)
+```bash
+git clone <repository-url>
+cd backend
+```
 
-### Installation
+### 2. Install Dependencies
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd backend
-   ```
+```bash
+npm install
+```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+### 3. Environment Configuration
 
-3. Configure environment variables:
-   - Create a `.env` file in the root directory (copy from `.env.example`).
-   - Configure the following variables:
-     ```env
-     PORT=5001
-     MONGO_URI=mongodb://localhost:27017/gtvt_hoc_tap
-     JWT_SECRET=your_jwt_secret_key
-     ```
-   - Make sure your MongoDB instance is running.
+Create a `.env` file in the root directory by copying the example:
 
-4. Seed the database (optional but recommended for development):
-   ```bash
-   node src/scripts/seedDatabase.js
-   ```
+```bash
+cp .env.example .env
+```
 
-5. Start the server:
-   - Development (with hot reload):
-     ```bash
-     npm run dev
-     ```
-   - Production:
-     ```bash
-     npm start
-     ```
+Update the variables in `.env` as needed:
 
-6. The API will be available at `http://localhost:5001`.
+| Variable | Description | Default Value |
+|----------|-------------|---------------|
+| `PORT` | Local server port | `5001` |
+| `MONGODB_URI` | MongoDB Connection String | `mongodb://localhost:27017/do_an_db` |
+| `NODE_ENV` | Environment mode | `development` |
+| `CLIENT_URL` | Frontend URL for CORS | `http://localhost:5173` |
+| `JWT_SECRET` | Secret key for signing tokens | (Add your own secure string) |
 
-## API Documentation
+### 4. Database Seeding (Optional)
 
-Key endpoints include:
+You can populate the database with initial data using the provided scripts:
 
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Login
-- `GET /api/points` - Get all tourism points
-- `GET /api/providers` - Get all service providers
-- `GET /api/change-requests` - Get pending change requests (Admin/Lecturer)
-- `PUT /api/change-requests/:id/approve` - Approve a request
+```bash
+# Seed initial users (Admin/Approvers)
+node src/scripts/seedUsers.js
+
+# Seed sample tourism data
+node src/scripts/seedDatabase.js
+# OR
+node src/scripts/seedProviders.js
+```
+
+### 5. Start the Server
+
+**Development Mode (with auto-reload):**
+```bash
+npm run dev
+```
+
+**Production Mode:**
+```bash
+npm start
+```
+
+The server will start at `http://localhost:5001`.
+Health check endpoints: `http://localhost:5001/api/health`
 
 ## Project Structure
 
-- `src/controllers`: Request handlers logic.
-- `src/models`: Mongoose schemas and models.
-- `src/routes`: API route definitions.
-- `src/middlewares`: Auth and validation middlewares.
-- `src/scripts`: Database seeding and utility scripts.
-- `uploads`: Directory for uploaded media files.
+```
+├── src/
+│   ├── config/       # Database connection & env config
+│   ├── controllers/  # Request logic (glue between routes & models)
+│   ├── middlewares/  # Express middlewares (Auth, Uploads)
+│   ├── models/       # Mongoose Schemas (Data definition)
+│   ├── routes/       # API Route definitions
+│   ├── scripts/      # Database seeding & utility scripts
+│   └── app.js        # Express app setup
+├── uploads/          # Directory for uploaded static files
+├── server.js         # Entry point
+└── package.json      # Dependencies & Scripts
+```
 
-## Contributors
+## API Endpoints
 
-- Project Team
+| Resource | Base Path | Description |
+|----------|-----------|-------------|
+| **Auth** | `/api/auth` | Login, Register, Profile |
+| **Points** | `/api/points` | CRUD Tourism Points |
+| **Routes** | `/api/routes` | CRUD Travel Routes |
+| **Providers** | `/api/providers` | CRUD Service Providers |
+| **Requests** | `/api/change-requests` | Manage user edit proposals |
+| **Permissions**| `/api/permissions` | Role & Access Control |
+| **Notes** | `/api/notes` | Admin/User notes on entities |
+| **Estimates** | `/api/estimates` | Cost calculation logic |
 
-## License
+## Deployment
 
-[ISC](LICENSE)
+### Manual Deployment (PM2)
+
+1. **Install PM2:**
+   ```bash
+   npm install -g pm2
+   ```
+
+2. **Start Application:**
+   ```bash
+   pm2 start server.js --name "tourism-backend"
+   ```
+
+3. **Monitor:**
+   ```bash
+   pm2 status
+   pm2 logs
+   ```
+
+### Docker (Optional)
+
+If deploying via Docker, create a `Dockerfile`:
+
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --production
+COPY . .
+EXPOSE 5001
+CMD ["npm", "start"]
+```
+
+Build and run:
+```bash
+docker build -t tourism-backend .
+docker run -p 5001:5001 --env-file .env tourism-backend
+```
+
+## Troubleshooting
+
+- **MongoDB Connection Error:** Ensure your local MongoDB service is running (`brew services start mongodb-community` on macOS or `sudo systemctl start mongod` on Linux).
+- **CORS Issues:** Check `CLIENT_URL` in `.env` matches your frontend URL.
+- **Permission Errors:** Ensure `node src/scripts/seedUsers.js` was run to create initial admin accounts.
