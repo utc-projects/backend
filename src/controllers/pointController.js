@@ -28,7 +28,7 @@ const toGeoJSON = (points) => ({
 // @access  Public
 exports.getAllPoints = async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, page = 1, limit = 10, category } = req.query;
     let query = {};
 
     if (search) {
@@ -42,8 +42,35 @@ exports.getAllPoints = async (req, res) => {
       };
     }
 
-    const points = await TourismPoint.find(query).populate('routeCount').sort({ name: 1 });
-    res.json(toGeoJSON(points));
+    if (category) {
+      query.category = category;
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await TourismPoint.countDocuments(query);
+    const points = await TourismPoint.find(query)
+      .populate('routeCount')
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limitNum);
+      
+    const geoJson = toGeoJSON(points);
+    
+    // Add pagination metadata to the response
+    const response = {
+        ...geoJson,
+        pagination: {
+            page: pageNum,
+            limit: limitNum,
+            totalItems: total,
+            totalPages: Math.ceil(total / limitNum)
+        }
+    };
+
+    res.json(response);
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
@@ -69,8 +96,30 @@ exports.getPointById = async (req, res) => {
 // @access  Public
 exports.getPointsByCategory = async (req, res) => {
   try {
-    const points = await TourismPoint.find({ category: req.params.category });
-    res.json(toGeoJSON(points));
+    const { page = 1, limit = 10 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const query = { category: req.params.category };
+
+    const total = await TourismPoint.countDocuments(query);
+    const points = await TourismPoint.find(query)
+        .skip(skip)
+        .limit(limitNum);
+    
+    const geoJson = toGeoJSON(points);
+     const response = {
+        ...geoJson,
+        pagination: {
+            page: pageNum,
+            limit: limitNum,
+            totalItems: total,
+            totalPages: Math.ceil(total / limitNum)
+        }
+    };
+
+    res.json(response);
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
