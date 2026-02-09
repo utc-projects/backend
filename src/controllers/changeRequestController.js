@@ -2,6 +2,7 @@ const ChangeRequest = require('../models/ChangeRequest');
 const TourismPoint = require('../models/TourismPoint');
 const TourismRoute = require('../models/TourismRoute');
 const ServiceProvider = require('../models/ServiceProvider');
+const Notification = require('../models/Notification'); // Import Notification model
 
 // Helper to get model by type
 const getModelByType = (type) => {
@@ -107,6 +108,22 @@ exports.approveRequest = async (req, res) => {
     request.reviewNote = req.body.note || '';
     await request.save();
 
+    // Notify Student
+    try {
+      const io = req.app.get('io');
+      const notification = await Notification.create({
+        recipient: request.requester,
+        sender: req.user._id,
+        type: 'CHANGE_REQUEST_APPROVED',
+        message: `Yêu cầu thay đổi ${request.type} của bạn đã được phê duyệt.`,
+        link: `/student/requests/${request._id}`
+      });
+      
+      io.to(request.requester.toString()).emit('notification', notification);
+    } catch(err) {
+      console.error('Notification Error:', err);
+    }
+
     res.json({ message: 'Đã phê duyệt yêu cầu thành công', request });
   } catch (error) {
     console.error('Approve Error:', error);
@@ -131,6 +148,22 @@ exports.rejectRequest = async (req, res) => {
     request.reviewer = req.user._id;
     request.reviewNote = req.body.note || '';
     await request.save();
+
+    // Notify Student
+    try {
+      const io = req.app.get('io');
+      const notification = await Notification.create({
+        recipient: request.requester,
+        sender: req.user._id,
+        type: 'CHANGE_REQUEST_REJECTED',
+        message: `Yêu cầu thay đổi ${request.type} của bạn đã bị từ chối.`,
+        link: `/student/requests/${request._id}`
+      });
+      
+      io.to(request.requester.toString()).emit('notification', notification);
+    } catch(err) {
+      console.error('Notification Error:', err);
+    }
 
     res.json({ message: 'Đã từ chối yêu cầu', request });
   } catch (error) {

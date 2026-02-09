@@ -51,6 +51,37 @@ exports.interceptRequest = (type) => {
       });
 
       // 5. Return "Pending Approval" response
+      try {
+        const User = require('../models/User');
+        const Notification = require('../models/Notification');
+        const io = req.app.get('io');
+
+        // Find admins and lecturers
+        const approvers = await User.find({ role: { $in: ['admin', 'lecturer'] } });
+        
+        const notifications = approvers.map(approver => ({
+          recipient: approver._id,
+          sender: req.user._id,
+          type: 'CHANGE_REQUEST_CREATED',
+          message: `Sinh viên ${req.user.name} đã gửi yêu cầu thay đổi ${type}.`,
+          link: `/admin/requests/${changeRequest._id}`
+        }));
+
+        await Notification.insertMany(notifications);
+
+        // Emit socket event to approvers
+        approvers.forEach(approver => {
+          io.to(approver._id.toString()).emit('notification', {
+            message: `Sinh viên ${req.user.name} đã gửi yêu cầu thay đổi ${type}.`,
+            link: `/admin/requests/${changeRequest._id}`
+          });
+        });
+
+      } catch (notifyError) {
+        console.error('Notification Error:', notifyError);
+        // Don't fail the request if notification fails
+      }
+
       return res.status(202).json({
         message: 'Yêu cầu của bạn đã được gửi và đang chờ phê duyệt.',
         status: 'pending_approval',

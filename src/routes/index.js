@@ -15,4 +15,5 @@ module.exports = {
   changeRequestRoutes: require('./changeRequestRoutes'),
 
   estimateRoutes: require('./estimateRoutes'),
+  notificationRoutes: require('./notificationRoutes'),
 };

@@ -37,9 +37,9 @@ app.use('/api/points', pointRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/change-requests', changeRequestRoutes);
-app.use('/api/notes', noteRoutes);
 app.use('/api/permissions', permissionRoutes);
+app.use('/api/change-requests', changeRequestRoutes);
+app.use('/api/notifications', require('./routes').notificationRoutes);
 app.use('/api/estimates', require('./routes').estimateRoutes);
 
 
