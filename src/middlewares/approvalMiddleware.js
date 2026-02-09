@@ -64,7 +64,7 @@ exports.interceptRequest = (type) => {
           sender: req.user._id,
           type: 'CHANGE_REQUEST_CREATED',
           message: `Sinh viên ${req.user.name} đã gửi yêu cầu thay đổi ${type}.`,
-          link: `/admin/requests/${changeRequest._id}`
+          link: `/admin/approvals/${changeRequest._id}`
         }));
 
         await Notification.insertMany(notifications);
@@ -73,7 +73,7 @@ exports.interceptRequest = (type) => {
         approvers.forEach(approver => {
           io.to(approver._id.toString()).emit('notification', {
             message: `Sinh viên ${req.user.name} đã gửi yêu cầu thay đổi ${type}.`,
-            link: `/admin/requests/${changeRequest._id}`
+            link: `/admin/approvals/${changeRequest._id}`
           });
         });
 

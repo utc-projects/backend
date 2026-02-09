@@ -116,7 +116,7 @@ exports.approveRequest = async (req, res) => {
         sender: req.user._id,
         type: 'CHANGE_REQUEST_APPROVED',
         message: `Yêu cầu thay đổi ${request.type} của bạn đã được phê duyệt.`,
-        link: `/student/requests/${request._id}`
+        link: `/admin/approvals/${request._id}`
       });
       
       io.to(request.requester.toString()).emit('notification', notification);
@@ -157,7 +157,7 @@ exports.rejectRequest = async (req, res) => {
         sender: req.user._id,
         type: 'CHANGE_REQUEST_REJECTED',
         message: `Yêu cầu thay đổi ${request.type} của bạn đã bị từ chối.`,
-        link: `/student/requests/${request._id}`
+        link: `/admin/approvals/${request._id}`
       });
       
       io.to(request.requester.toString()).emit('notification', notification);
