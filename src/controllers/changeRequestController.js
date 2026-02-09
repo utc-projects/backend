@@ -15,32 +15,88 @@ const getModelByType = (type) => {
 };
 
 // Get all requests (Admin/Lecturer)
+// Get all requests (Admin/Lecturer)
 exports.getAllRequests = async (req, res) => {
   try {
-    const { status, type } = req.query;
+    const { status, type, page = 1, limit = 10 } = req.query;
     const filter = {};
-    if (status) filter.status = status;
+    
+    if (status) {
+      if (status === 'history') {
+        filter.status = { $ne: 'pending' };
+      } else {
+        filter.status = status;
+      }
+    }
+    
     if (type) filter.type = type;
 
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await ChangeRequest.countDocuments(filter);
     const requests = await ChangeRequest.find(filter)
       .populate('requester', 'name email avatar')
       .populate('reviewer', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
 
-    res.json(requests);
+    res.json({
+        success: true,
+        requests,
+        pagination: {
+            page: pageNum,
+            limit: limitNum,
+            totalItems: total,
+            totalPages: Math.ceil(total / limitNum)
+        }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy danh sách yêu cầu' });
   }
 };
 
 // Get my requests (Student)
+// Get my requests (Student)
 exports.getMyRequests = async (req, res) => {
   try {
-    const requests = await ChangeRequest.find({ requester: req.user._id })
+    const { status, type, page = 1, limit = 10 } = req.query;
+    const filter = { requester: req.user._id };
+
+    if (status) {
+        if (status === 'history') {
+            filter.status = { $ne: 'pending' };
+        } else {
+            filter.status = status;
+        }
+    }
+    
+    if (type) filter.type = type;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await ChangeRequest.countDocuments(filter);
+    const requests = await ChangeRequest.find(filter)
       .populate('requester', 'name email avatar')
       .populate('reviewer', 'name email')
-      .sort({ createdAt: -1 });
-    res.json(requests);
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    res.json({
+        success: true,
+        requests,
+        pagination: {
+            page: pageNum,
+            limit: limitNum,
+            totalItems: total,
+            totalPages: Math.ceil(total / limitNum)
+        }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy danh sách yêu cầu của bạn' });
   }
