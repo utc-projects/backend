@@ -17,8 +17,45 @@ exports.createEstimate = async (req, res) => {
 // @access  Private
 exports.getEstimates = async (req, res) => {
   try {
-    const estimates = await TourEstimate.find({ is_deleted: false }).sort({ createdAt: -1 });
-    res.status(200).json({ success: true, count: estimates.length, data: estimates });
+    const { search, status, page = 1, limit = 10 } = req.query;
+    const query = { is_deleted: false };
+
+    // Search filter (Code, Name, Customer)
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { code: searchRegex },
+        { name: searchRegex },
+        { customer: searchRegex } // Assuming 'customer' field exists, or adjust as needed
+      ];
+    }
+
+    // Status filter
+    if (status && status !== 'All') {
+      query.status = status;
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await TourEstimate.countDocuments(query);
+    const estimates = await TourEstimate.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    res.status(200).json({
+      success: true,
+      count: estimates.length,
+      data: estimates,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems: total,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
