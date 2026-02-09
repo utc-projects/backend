@@ -33,7 +33,7 @@ const toGeoJSON = (providers) => ({
 // @access  Public
 exports.getAllProviders = async (req, res) => {
   try {
-    const { serviceType, subType, recommended, search } = req.query;
+    const { serviceType, subType, recommended, search, page = 1, limit = 10 } = req.query;
     const filter = {};
     
     if (serviceType) filter.serviceType = serviceType;
@@ -49,11 +49,32 @@ exports.getAllProviders = async (req, res) => {
       ];
     }
 
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await ServiceProvider.countDocuments(filter);
     const providers = await ServiceProvider.find(filter)
       .populate('linkedPoints', 'name')
       .populate('linkedRoutes', 'routeName')
-      .sort({ name: 1 });
-    res.json(toGeoJSON(providers));
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const geoJson = toGeoJSON(providers);
+
+    // Add pagination metadata
+    const response = {
+      ...geoJson,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems: total,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    };
+
+    res.json(response);
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
