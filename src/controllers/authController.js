@@ -207,12 +207,47 @@ exports.updateProfile = async (req, res) => {
 // @access  Private/Admin
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find()
-      .sort({ createdAt: -1 });
+    const { search, role, status, page = 1, limit = 10 } = req.query;
+    const query = {};
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { email: searchRegex },
+        { studentId: searchRegex }
+      ];
+    }
+
+    if (role && role !== 'all') {
+      query.role = role;
+    }
+
+    if (status && status !== 'all') {
+      if (status === 'active') query.isActive = true;
+      if (status === 'inactive') query.isActive = false;
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
     res.json({
       success: true,
       count: users.length,
       users,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems: total,
+        totalPages: Math.ceil(total / limitNum)
+      }
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
