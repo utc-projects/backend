@@ -3,8 +3,6 @@
  * Run with: node src/scripts/seedUsers.js
  */
 
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 const User = require('../models/User');
 
@@ -57,52 +55,36 @@ const sampleUsers = [
 ];
 
 async function seedUsers() {
-  try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
+  console.log('\n👤 Seeding Users...');
 
-    // Check if users already exist
-    const existingCount = await User.countDocuments();
-    if (existingCount > 0) {
-      console.log(`⚠️ Đã có ${existingCount} users trong database.`);
-      console.log('Bạn có muốn xóa và tạo lại? (Ctrl+C để hủy, Enter để tiếp tục)');
-      
-      // Wait a bit then proceed
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Clear existing users
-      await User.deleteMany({});
-      console.log('🗑️ Đã xóa users cũ');
-    }
-
-    // Create users
-    const createdUsers = [];
-    for (const userData of sampleUsers) {
-      const user = await User.create(userData);
-      createdUsers.push({
-        email: user.email,
-        role: user.role,
-        roleLabel: user.roleLabel,
-      });
-    }
-
-    console.log('\n✅ Đã tạo users mẫu:');
-    console.table(createdUsers);
-
-    console.log('\n📝 Thông tin đăng nhập:');
-    console.log('-----------------------------------');
-    console.log('Admin:     admin@tourism.edu.vn / admin123');
-    console.log('Giảng viên: giangvien@tourism.edu.vn / lecturer123');
-    console.log('Sinh viên:  sinhvien1@tourism.edu.vn / student123');
-    console.log('-----------------------------------');
-
-    mongoose.connection.close();
-    console.log('\n✅ Hoàn thành!');
-  } catch (error) {
-    console.error('❌ Lỗi:', error.message);
-    process.exit(1);
+  const existingCount = await User.countDocuments();
+  if (existingCount > 0) {
+    await User.deleteMany({});
+    console.log(`   🗑️ Đã xóa ${existingCount} users cũ`);
   }
+
+  const createdUsers = [];
+  for (const userData of sampleUsers) {
+    const user = await User.create(userData);
+    createdUsers.push({
+      email: user.email,
+      role: user.role,
+      roleLabel: user.roleLabel,
+    });
+  }
+
+  console.log(`   ✅ Đã tạo ${createdUsers.length} users mẫu`);
+  console.log('   📝 Login: admin@tourism.edu.vn / admin123');
 }
 
-seedUsers();
+if (require.main === module) {
+  const path = require('path');
+  require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => { console.log('✅ Connected to MongoDB'); return seedUsers(); })
+    .then(() => { mongoose.connection.close(); console.log('✅ Hoàn thành!'); })
+    .catch(err => { console.error('❌ Lỗi:', err.message); process.exit(1); });
+}
+
+module.exports = seedUsers;
+

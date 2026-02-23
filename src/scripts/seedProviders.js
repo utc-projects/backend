@@ -3,15 +3,12 @@
  * Run with: node src/scripts/seedProviders.js
  */
 
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 const ServiceProvider = require('../models/ServiceProvider');
 const TourismRoute = require('../models/TourismRoute');
 
 const sampleProviders = [
   // === LƯU TRÚ ===
-  // Khách sạn
   {
     name: 'Khách sạn Mường Thanh Hà Nội',
     serviceType: 'accommodation',
@@ -26,7 +23,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Phù hợp cho đoàn thực tập chuyên nghiệp, có phòng hội thảo.',
   },
-  // Homestay
   {
     name: 'Homestay Sapa View',
     serviceType: 'accommodation',
@@ -41,7 +37,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Trải nghiệm văn hóa dân tộc thiểu số, học nấu ăn truyền thống.',
   },
-  // Resort
   {
     name: 'Vinpearl Resort Hạ Long',
     serviceType: 'accommodation',
@@ -56,9 +51,7 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Tìm hiểu mô hình kinh doanh resort tích hợp.',
   },
-
   // === ĂN UỐNG ===
-  // Nhà hàng
   {
     name: 'Nhà hàng Sen Tây Hồ',
     serviceType: 'dining',
@@ -73,7 +66,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Học tiêu chuẩn phục vụ nhà hàng cao cấp.',
   },
-  // Ẩm thực địa phương
   {
     name: 'Quán Phở Thìn Lò Đúc',
     serviceType: 'dining',
@@ -88,9 +80,7 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Tìm hiểu văn hóa ẩm thực đường phố Hà Nội.',
   },
-
   // === VẬN CHUYỂN ===
-  // Xe du lịch
   {
     name: 'Công ty Du lịch Sinh Café',
     serviceType: 'transportation',
@@ -105,7 +95,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Tìm hiểu quản lý đội xe du lịch đường dài.',
   },
-  // Tàu thuyền
   {
     name: 'Du thuyền Paradise Cruises',
     serviceType: 'transportation',
@@ -120,7 +109,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Mô hình kinh doanh du thuyền cao cấp, tiêu chuẩn dịch vụ.',
   },
-  // Cáp treo
   {
     name: 'Cáp treo Fansipan Legend',
     serviceType: 'transportation',
@@ -135,9 +123,7 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Tìm hiểu kỹ thuật vận hành cáp treo an toàn.',
   },
-
   // === THAM QUAN - GIẢI TRÍ ===
-  // Khu du lịch
   {
     name: 'Khu Du lịch Tràng An',
     serviceType: 'entertainment',
@@ -152,7 +138,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Nghiên cứu mô hình quản lý di sản thế giới.',
   },
-  // Điểm vui chơi
   {
     name: 'Sun World Hạ Long Complex',
     serviceType: 'entertainment',
@@ -167,7 +152,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Mô hình kinh doanh công viên giải trí quy mô lớn.',
   },
-  // Hoạt động trải nghiệm
   {
     name: 'Làng Văn hóa Dân tộc Thái Hải',
     serviceType: 'entertainment',
@@ -182,9 +166,7 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Học phương pháp bảo tồn và phát huy văn hóa dân tộc.',
   },
-
   // === DỊCH VỤ HỖ TRỢ ===
-  // Hướng dẫn viên
   {
     name: 'Trung tâm HDV Du lịch Việt Nam',
     serviceType: 'support',
@@ -199,7 +181,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Học nghiệp vụ hướng dẫn viên chuyên nghiệp.',
   },
-  // Cơ sở mua sắm
   {
     name: 'Làng Nghề Lụa Vạn Phúc',
     serviceType: 'support',
@@ -214,7 +195,6 @@ const sampleProviders = [
     isRecommended: true,
     educationalNotes: 'Tìm hiểu làng nghề truyền thống và phát triển du lịch.',
   },
-  // Dịch vụ bổ trợ
   {
     name: 'Công ty Bảo hiểm Du lịch Bảo Việt',
     serviceType: 'support',
@@ -232,73 +212,45 @@ const sampleProviders = [
 ];
 
 async function seedProviders() {
-  try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
+  console.log('\n🏨 Seeding Providers...');
 
-    // Get routes for linking
-    const routes = await TourismRoute.find();
-    console.log(`📍 Found ${routes.length} routes`);
+  const routes = await TourismRoute.find();
+  console.log(`   📍 Found ${routes.length} routes for linking`);
 
-    // Clear existing providers
-    await ServiceProvider.deleteMany({});
-    console.log('🗑️ Cleared existing providers');
+  await ServiceProvider.deleteMany({});
 
-    // Link some providers to routes
-    const hanoiHalongRoute = routes.find(r => r.routeName.includes('Hạ Long'));
-    const tayBacRoute = routes.find(r => r.routeName.includes('Tây Bắc'));
+  const hanoiHalongRoute = routes.find(r => r.routeName.includes('Hạ Long'));
+  const tayBacRoute = routes.find(r => r.routeName.includes('Tây Bắc'));
 
-    // Add route links to some providers
-    const providersWithLinks = sampleProviders.map(p => {
-      const provider = { ...p };
-      provider.linkedRoutes = [];
+  const providersWithLinks = sampleProviders.map(p => {
+    const provider = { ...p };
+    provider.linkedRoutes = [];
 
-      // Link Ha Long related providers
-      if (p.name.includes('Hạ Long') || p.name.includes('Paradise')) {
-        if (hanoiHalongRoute) provider.linkedRoutes.push(hanoiHalongRoute._id);
-      }
-      // Link Sapa/Tay Bac related providers
-      if (p.name.includes('Sapa') || p.name.includes('Fansipan')) {
-        if (tayBacRoute) provider.linkedRoutes.push(tayBacRoute._id);
-      }
-      // General Hanoi providers
-      if (p.address.includes('Hà Nội') || p.serviceArea === 'Vùng') {
-        if (hanoiHalongRoute) provider.linkedRoutes.push(hanoiHalongRoute._id);
-        if (tayBacRoute) provider.linkedRoutes.push(tayBacRoute._id);
-      }
-
-      return provider;
-    });
-
-    // Create providers
-    const created = await ServiceProvider.insertMany(providersWithLinks);
-    console.log(`\n✅ Đã tạo ${created.length} nhà cung cấp\n`);
-
-    // Summary by category
-    const summary = {};
-    for (const p of created) {
-      const key = p.serviceType;
-      if (!summary[key]) summary[key] = { count: 0, subTypes: {} };
-      summary[key].count++;
-      summary[key].subTypes[p.subType] = (summary[key].subTypes[p.subType] || 0) + 1;
+    if (p.name.includes('Hạ Long') || p.name.includes('Paradise')) {
+      if (hanoiHalongRoute) provider.linkedRoutes.push(hanoiHalongRoute._id);
+    }
+    if (p.name.includes('Sapa') || p.name.includes('Fansipan')) {
+      if (tayBacRoute) provider.linkedRoutes.push(tayBacRoute._id);
+    }
+    if (p.address.includes('Hà Nội') || p.serviceArea === 'Vùng') {
+      if (hanoiHalongRoute) provider.linkedRoutes.push(hanoiHalongRoute._id);
+      if (tayBacRoute) provider.linkedRoutes.push(tayBacRoute._id);
     }
 
-    console.log('📊 Thống kê theo loại:');
-    for (const [type, data] of Object.entries(summary)) {
-      console.log(`\n  ${ServiceProvider.getServiceTypeLabel(type)} (${data.count}):`);
-      for (const [subType, count] of Object.entries(data.subTypes)) {
-        const info = ServiceProvider.SERVICE_SUB_TYPES[subType];
-        console.log(`    ${info.icon} ${info.label}: ${count}`);
-      }
-    }
+    return provider;
+  });
 
-    mongoose.connection.close();
-    console.log('\n✅ Hoàn thành!');
-  } catch (error) {
-    console.error('❌ Lỗi:', error.message);
-    process.exit(1);
-  }
+  const created = await ServiceProvider.insertMany(providersWithLinks);
+  console.log(`   ✅ Đã tạo ${created.length} nhà cung cấp`);
 }
 
-seedProviders();
+if (require.main === module) {
+  const path = require('path');
+  require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => { console.log('✅ Connected to MongoDB'); return seedProviders(); })
+    .then(() => { mongoose.connection.close(); console.log('✅ Hoàn thành!'); })
+    .catch(err => { console.error('❌ Lỗi:', err.message); process.exit(1); });
+}
+
+module.exports = seedProviders;
