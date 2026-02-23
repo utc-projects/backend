@@ -53,7 +53,7 @@ exports.getAllPoints = async (req, res) => {
     const total = await TourismPoint.countDocuments(query);
     const points = await TourismPoint.find(query)
       .populate('routeCount')
-      .sort({ name: 1 })
+      .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(limitNum);
       
