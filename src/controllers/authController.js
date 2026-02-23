@@ -307,6 +307,35 @@ exports.toggleUserActive = async (req, res) => {
   }
 };
 
+// @desc    Reset user password (Admin only)
+// @route   PUT /api/users/:id/reset-password
+// @access  Private/Admin
+exports.resetUserPassword = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    }
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$!';
+    let newPassword = '';
+    for (let i = 0; i < 12; i++) {
+      newPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      newPassword,
+    });
+  } catch (error) {
+    res.status(400).json({ message: 'Reset mật khẩu thất bại', error: error.message });
+  }
+};
+
 // @desc    Create new user (Admin only)
 // @route   POST /api/auth/users
 // @access  Private/Admin

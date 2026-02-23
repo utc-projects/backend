@@ -9,6 +9,7 @@ const {
   getAllUsers,
   updateUserRole,
   toggleUserActive,
+  resetUserPassword,
   createUser,
   updateUser,
   deleteUser,
@@ -32,6 +33,7 @@ router.post('/users', protect, authorize('users', 'create'), createUser);
 router.put('/users/:id', protect, authorize('users', 'edit'), updateUser);
 router.put('/users/:id/role', protect, authorize('users', 'edit'), updateUserRole);
 router.put('/users/:id/toggle-active', protect, authorize('users', 'edit'), toggleUserActive);
+router.put('/users/:id/reset-password', protect, authorize('users', 'edit'), resetUserPassword);
 router.delete('/users/:id', protect, authorize('users', 'delete'), deleteUser);
 
 module.exports = router;
