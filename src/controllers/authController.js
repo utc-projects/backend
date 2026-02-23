@@ -235,7 +235,7 @@ exports.getAllUsers = async (req, res) => {
 
     const total = await User.countDocuments(query);
     const users = await User.find(query)
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(limitNum);
 
