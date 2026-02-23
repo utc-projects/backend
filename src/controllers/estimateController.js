@@ -8,7 +8,7 @@ exports.createEstimate = async (req, res) => {
     const estimate = await TourEstimate.create(req.body);
     res.status(201).json({ success: true, data: estimate });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    res.status(400).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -57,7 +57,7 @@ exports.getEstimates = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -72,7 +72,7 @@ exports.getEstimateById = async (req, res) => {
     }
     res.status(200).json({ success: true, data: estimate });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -93,7 +93,7 @@ exports.updateEstimate = async (req, res) => {
 
     res.status(200).json({ success: true, data: estimate });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    res.status(400).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -113,7 +113,7 @@ exports.deleteEstimate = async (req, res) => {
 
     res.status(200).json({ success: true, message: 'Estimate deleted successfully (Soft)' });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -147,6 +147,6 @@ exports.cloneEstimate = async (req, res) => {
 
     res.status(201).json({ success: true, data: newEstimate });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    res.status(400).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };

@@ -43,7 +43,7 @@ exports.getAllPermissions = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy danh sách quyền',
-      error: error.message
+      ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
   }
 };
@@ -76,7 +76,7 @@ exports.updatePermission = async (req, res) => {
     res.status(400).json({
       success: false,
       message: 'Cập nhật quyền thất bại',
-      error: error.message
+      ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
   }
 };
@@ -116,7 +116,7 @@ exports.getMyPermissions = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy quyền cá nhân',
-      error: error.message
+      ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
   }
 };

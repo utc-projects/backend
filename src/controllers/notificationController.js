@@ -24,7 +24,7 @@ const getNotifications = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server Error',
-      error: error.message
+      ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
   }
 };
@@ -62,7 +62,7 @@ const markAsRead = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server Error',
-      error: error.message
+      ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
   }
 };
@@ -85,7 +85,7 @@ const markAllAsRead = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server Error',
-      error: error.message
+      ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
   }
 };

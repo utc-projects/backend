@@ -15,7 +15,7 @@ exports.getMyNotes = async (req, res) => {
       notes,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -45,7 +45,7 @@ exports.getNotesByPoint = async (req, res) => {
       publicNotes,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -67,7 +67,7 @@ exports.createNote = async (req, res) => {
       note,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Tạo ghi chú thất bại', error: error.message });
+    res.status(400).json({ message: 'Tạo ghi chú thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -98,7 +98,7 @@ exports.updateNote = async (req, res) => {
       note,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Cập nhật thất bại', error: error.message });
+    res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -125,7 +125,7 @@ exports.deleteNote = async (req, res) => {
       message: 'Đã xóa ghi chú thành công',
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -152,6 +152,6 @@ exports.getNoteById = async (req, res) => {
       note,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };

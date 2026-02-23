@@ -16,7 +16,7 @@ exports.getAllRoutes = async (req, res) => {
       .sort({ routeName: 1 });
     res.json(routes);
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -32,7 +32,7 @@ exports.getRouteById = async (req, res) => {
     }
     res.json(route);
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -85,7 +85,7 @@ exports.getRouteGeoJSON = async (req, res) => {
 
     res.json(geoJSON);
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -133,7 +133,7 @@ exports.getAllRoutesGeoJSON = async (req, res) => {
       features: features,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -149,7 +149,7 @@ exports.createRoute = async (req, res) => {
     await route.populate('points', 'name location category');
     res.status(201).json(route);
   } catch (error) {
-    res.status(400).json({ message: 'Dữ liệu không hợp lệ', error: error.message });
+    res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -170,7 +170,7 @@ exports.updateRoute = async (req, res) => {
     
     res.json(route);
   } catch (error) {
-    res.status(400).json({ message: 'Dữ liệu không hợp lệ', error: error.message });
+    res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -185,6 +185,6 @@ exports.deleteRoute = async (req, res) => {
     }
     res.json({ message: 'Đã xóa tuyến du lịch thành công' });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };

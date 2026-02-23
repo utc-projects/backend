@@ -76,7 +76,7 @@ exports.getAllProviders = async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -93,7 +93,7 @@ exports.getProviderById = async (req, res) => {
     }
     res.json(provider);
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -122,7 +122,7 @@ exports.getProvidersByType = async (req, res) => {
     
     res.json(toGeoJSON(providers));
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -146,7 +146,7 @@ exports.getProvidersBySubType = async (req, res) => {
     
     res.json(toGeoJSON(providers));
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -167,7 +167,7 @@ exports.getProvidersByRoute = async (req, res) => {
     
     res.json(toGeoJSON(providers));
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -195,7 +195,7 @@ exports.getNearbyProviders = async (req, res) => {
     
     res.json(toGeoJSON(providers));
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -233,7 +233,7 @@ exports.getCategoriesWithSubTypes = async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -260,7 +260,7 @@ exports.getServiceTypes = async (req, res) => {
     
     res.json(typesWithCount);
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -320,7 +320,7 @@ exports.createProvider = async (req, res) => {
     await provider.save();
     res.status(201).json(provider);
   } catch (error) {
-    res.status(400).json({ message: 'Dữ liệu không hợp lệ', error: error.message });
+    res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -403,7 +403,7 @@ exports.updateProvider = async (req, res) => {
     
     res.json(updatedProvider);
   } catch (error) {
-    res.status(400).json({ message: 'Dữ liệu không hợp lệ', error: error.message });
+    res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -442,6 +442,6 @@ exports.deleteProvider = async (req, res) => {
     await ServiceProvider.findByIdAndDelete(req.params.id);
     res.json({ message: 'Đã xóa nhà cung cấp và các tệp đính kèm thành công' });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };

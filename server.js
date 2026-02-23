@@ -1,5 +1,14 @@
 require('dotenv').config();
 
+// Validate required environment variables
+const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI', 'CLIENT_URL', 'SERVER_URL'];
+for (const varName of requiredEnvVars) {
+  if (!process.env[varName]) {
+    console.error(`❌ Missing required env var: ${varName}`);
+    process.exit(1);
+  }
+}
+
 const http = require('http');
 const { Server } = require('socket.io');
 
@@ -19,7 +28,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: process.env.CLIENT_URL,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   }
 });
@@ -63,5 +72,5 @@ process.on('unhandledRejection', (err) => {
 // Start server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Health check: ${process.env.SERVER_URL || `http://localhost:${PORT}`}/api/health`);
+  console.log(`📡 Health check: ${process.env.SERVER_URL}/api/health`);
 });

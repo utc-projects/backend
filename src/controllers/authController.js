@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const User = require('../models/User');
 
 // @desc    Register user
@@ -40,7 +41,7 @@ exports.register = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(400).json({ message: 'Đăng ký thất bại', error: error.message });
+    res.status(400).json({ message: 'Đăng ký thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -91,7 +92,7 @@ exports.login = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Đăng nhập thất bại', error: error.message });
+    res.status(500).json({ message: 'Đăng nhập thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -117,7 +118,7 @@ exports.getMe = async (req, res) => {
     });
   } catch (error) {
     console.error('GetMe Error:', error);
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -167,7 +168,7 @@ exports.updatePassword = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Đổi mật khẩu thất bại', error: error.message });
+    res.status(500).json({ message: 'Đổi mật khẩu thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -198,7 +199,7 @@ exports.updateProfile = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(400).json({ message: 'Cập nhật thất bại', error: error.message });
+    res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -250,7 +251,7 @@ exports.getAllUsers = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
+    res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -280,7 +281,7 @@ exports.updateUserRole = async (req, res) => {
       user,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Cập nhật thất bại', error: error.message });
+    res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -303,7 +304,7 @@ exports.toggleUserActive = async (req, res) => {
       user,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Cập nhật thất bại', error: error.message });
+    res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -318,11 +319,7 @@ exports.resetUserPassword = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' });
     }
 
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$!';
-    let newPassword = '';
-    for (let i = 0; i < 12; i++) {
-      newPassword += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const newPassword = crypto.randomBytes(9).toString('base64url');
 
     user.password = newPassword;
     await user.save();
@@ -332,7 +329,7 @@ exports.resetUserPassword = async (req, res) => {
       newPassword,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Reset mật khẩu thất bại', error: error.message });
+    res.status(400).json({ message: 'Reset mật khẩu thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -357,7 +354,6 @@ exports.createUser = async (req, res) => {
       role: role || 'student',
       studentId,
       department,
-      department,
     });
 
     res.status(201).json({
@@ -374,7 +370,7 @@ exports.createUser = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(400).json({ message: 'Tạo người dùng thất bại', error: error.message });
+    res.status(400).json({ message: 'Tạo người dùng thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -417,7 +413,7 @@ exports.updateUser = async (req, res) => {
       user,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Cập nhật thất bại', error: error.message });
+    res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
 
@@ -444,6 +440,6 @@ exports.deleteUser = async (req, res) => {
       message: 'Đã xóa người dùng thành công',
     });
   } catch (error) {
-    res.status(400).json({ message: 'Xóa thất bại', error: error.message });
+    res.status(400).json({ message: 'Xóa thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
