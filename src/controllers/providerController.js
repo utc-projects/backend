@@ -57,7 +57,7 @@ exports.getAllProviders = async (req, res) => {
     const providers = await ServiceProvider.find(filter)
       .populate('linkedPoints', 'name')
       .populate('linkedRoutes', 'routeName')
-      .sort({ name: 1 })
+      .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(limitNum);
 
