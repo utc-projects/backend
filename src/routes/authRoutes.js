@@ -17,7 +17,7 @@ const {
 const { protect, authorize } = require('../middlewares/authMiddleware');
 
 // Public routes
-router.post('/register', register);
+// router.post('/register', register); // temporarily disabled public self-registration
 router.post('/login', login);
 
 // Protected routes
@@ -37,4 +37,3 @@ router.put('/users/:id/reset-password', protect, authorize('users', 'edit'), res
 router.delete('/users/:id', protect, authorize('users', 'delete'), deleteUser);
 
 module.exports = router;
-
