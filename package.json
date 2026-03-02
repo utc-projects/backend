@@ -11,7 +11,8 @@
     "seed:users": "node src/scripts/seedUsers.js",
     "seed:data": "node src/scripts/seedDatabase.js",
     "seed:providers": "node src/scripts/seedProviders.js",
-    "seed:estimates": "node src/scripts/seedEstimates.js"
+    "seed:estimates": "node src/scripts/seedEstimates.js",
+    "migrate": "node src/scripts/migrate_routes.js"
   },
   "keywords": [],
   "author": "",

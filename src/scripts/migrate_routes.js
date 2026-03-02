@@ -10,6 +10,8 @@ const TourismRoute = require('../models/TourismRoute');
 const TourismPoint = require('../models/TourismPoint');
 
 const migrateRoutes = async () => {
+  let exitCode = 0;
+
   try {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('✅ Connected to Database');
@@ -35,9 +37,12 @@ const migrateRoutes = async () => {
     console.log('Migration completed');
   } catch (error) {
     console.error('Migration failed:', error);
+    exitCode = 1;
   } finally {
-    await mongoose.connection.close();
-    process.exit(0);
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close();
+    }
+    process.exit(exitCode);
   }
 };
 
