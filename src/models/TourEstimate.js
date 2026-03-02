@@ -31,6 +31,8 @@ const tourEstimateSchema = new mongoose.Schema({
     priceAdult: { type: Number, default: 0 },
     paxChild: { type: Number, default: 0 },
     priceChild: { type: Number, default: 0 },
+    paxOther: { type: Number, default: 0 },
+    priceOther: { type: Number, default: 0 },
     totalAmount: { type: Number, default: 0 }
   }],
   paymentSchedule: [{
@@ -84,6 +86,8 @@ const tourEstimateSchema = new mongoose.Schema({
   others: [{
     item: { type: String, required: true },
     pax: { type: Number, default: 0 },
+    usePax: { type: Boolean, default: false },
+    multiplier: { type: Number, default: 1 },
     qty: { type: Number, default: 1 },
     price: { type: Number, default: 0 },
     total: { type: Number, default: 0 }
