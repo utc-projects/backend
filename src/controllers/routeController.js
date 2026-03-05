@@ -5,6 +5,34 @@ const TourismPoint = require('../models/TourismPoint');
 // In production, you should use your own OSRM server
 const OSRM_API = 'https://router.project-osrm.org';
 
+// Prevent duplicate concurrent backfill jobs for the same route
+const pendingGeometryBackfills = new Set();
+
+const scheduleGeometryBackfill = (routeId) => {
+  if (!routeId) return;
+  const key = routeId.toString();
+  if (pendingGeometryBackfills.has(key)) return;
+
+  pendingGeometryBackfills.add(key);
+
+  (async () => {
+    try {
+      const route = await TourismRoute.findById(routeId).select('_id points geometry');
+      if (!route || !Array.isArray(route.points) || route.points.length < 2) return;
+
+      const hasGeometry = route.geometry && Array.isArray(route.geometry.coordinates) && route.geometry.coordinates.length > 1;
+      if (hasGeometry) return;
+
+      route.markModified('points');
+      await route.save();
+    } catch (error) {
+      console.warn(`Route geometry backfill failed for ${key}:`, error.message);
+    } finally {
+      pendingGeometryBackfills.delete(key);
+    }
+  })();
+};
+
 // Helper: Get road route geometry from OSRM
 // @desc    Get all routes
 // @route   GET /api/routes
@@ -61,6 +89,10 @@ exports.getRouteGeoJSON = async (req, res) => {
         type: 'LineString',
         coordinates: coordinates,
       };
+
+      if (coordinates.length > 1) {
+        scheduleGeometryBackfill(route._id);
+      }
     }
 
     const geoJSON = {
@@ -110,6 +142,10 @@ exports.getAllRoutesGeoJSON = async (req, res) => {
           type: 'LineString',
           coordinates: coordinates,
         };
+
+        if (coordinates.length > 1) {
+          scheduleGeometryBackfill(route._id);
+        }
       }
 
       return {
