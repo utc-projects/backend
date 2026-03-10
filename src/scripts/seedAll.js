@@ -6,7 +6,8 @@
  *   1. Users      — tạo tài khoản mẫu
  *   2. Database   — tạo Points, Routes, Providers (từ sampleData.js)
  *   3. Providers  — tạo Providers nâng cao với sub-types và route links
- *   4. Estimates  — tạo dự toán mẫu
+ *   4. Formulae   — tạo bộ công thức dự toán mẫu
+ *   5. Estimates  — tạo dự toán mẫu
  */
 
 const path = require('path');
@@ -16,6 +17,7 @@ const mongoose = require('mongoose');
 const seedUsers = require('./seedUsers');
 const seedDatabase = require('./seedDatabase');
 const seedProviders = require('./seedProviders');
+const seedEstimateFormulaProfiles = require('./seedEstimateFormulaProfiles');
 const seedEstimates = require('./seedEstimates');
 
 const seedAll = async () => {
@@ -27,6 +29,7 @@ const seedAll = async () => {
     await seedUsers();
     await seedDatabase();
     await seedProviders();
+    await seedEstimateFormulaProfiles();
     await seedEstimates();
 
     console.log('\n🎉 All seeds completed successfully!');

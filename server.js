@@ -1,10 +1,11 @@
 require('dotenv').config();
+const logger = require('./src/utils/logger');
 
 // Validate required environment variables
 const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI', 'CLIENT_URL', 'SERVER_URL'];
 for (const varName of requiredEnvVars) {
   if (!process.env[varName]) {
-    console.error(`❌ Missing required env var: ${varName}`);
+    logger.error('server.missing_env', { varName });
     process.exit(1);
   }
 }
@@ -37,29 +38,27 @@ const io = new Server(server, {
 app.set('io', io);
 
 io.on('connection', (socket) => {
-  console.log(`⚡: ${socket.id} user just connected!`);
+  logger.info('socket.connected', { socketId: socket.id });
   
   socket.on('join_room', (data) => {
     socket.join(data);
-    console.log(`User with ID: ${socket.id} joined room: ${data}`);
+    logger.info('socket.join_room', { socketId: socket.id, room: data });
   });
 
   socket.on('disconnect', () => {
-    console.log('🔥: A user disconnected');
+    logger.info('socket.disconnected', { socketId: socket.id });
   });
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION! 💥 Shutting down...');
-  console.error(err.name, err.message, err.stack);
+  logger.error('server.uncaught_exception', { error: err });
   process.exit(1);
 });
 
 // Handle unhandled rejections
 process.on('unhandledRejection', (err) => {
-  console.error('UNHANDLED REJECTION! 💥 Shutting down...');
-  console.error(err.name, err.message, err.stack);
+  logger.error('server.unhandled_rejection', { error: err });
   if (server) {
     server.close(() => {
       process.exit(1);
@@ -71,6 +70,8 @@ process.on('unhandledRejection', (err) => {
 
 // Start server
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Health check: ${process.env.SERVER_URL}/api/health`);
+  logger.info('server.started', {
+    port: PORT,
+    healthCheck: `${process.env.SERVER_URL}/api/health`,
+  });
 });

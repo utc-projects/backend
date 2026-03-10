@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const logger = require('./utils/logger');
 
 const app = express();
 
@@ -41,11 +42,16 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/change-requests', changeRequestRoutes);
 app.use('/api/notifications', require('./routes').notificationRoutes);
 app.use('/api/estimates', require('./routes').estimateRoutes);
+app.use('/api/estimate-formulas', require('./routes').estimateFormulaRoutes);
 
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error('http.unhandled_error', {
+    method: req.method,
+    path: req.originalUrl,
+    error: err,
+  });
   res.status(500).json({ 
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined

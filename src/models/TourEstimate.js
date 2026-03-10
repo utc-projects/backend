@@ -1,5 +1,18 @@
 const mongoose = require('mongoose');
 
+const adjustmentBreakdownSchema = new mongoose.Schema({
+  label: { type: String, default: '' },
+  direction: { type: String, enum: ['revenue', 'cost'], default: 'cost' },
+  mode: {
+    type: String,
+    enum: ['fixed', 'per_guest', 'percent_of_revenue', 'percent_of_cost'],
+    default: 'fixed',
+  },
+  value: { type: Number, default: 0 },
+  guestBasis: { type: String, enum: ['total', 'paying'], default: 'total' },
+  amount: { type: Number, default: 0 },
+}, { _id: false });
+
 const tourEstimateSchema = new mongoose.Schema({
   // META
   is_deleted: { type: Boolean, default: false },
@@ -41,6 +54,13 @@ const tourEstimateSchema = new mongoose.Schema({
     amount: Number,
     status: String
   }],
+
+  formulaProfileId: { type: mongoose.Schema.Types.ObjectId, ref: 'EstimateFormulaProfile', default: null },
+  formulaProfileKey: { type: String, default: '' },
+  formulaProfileName: { type: String, default: '' },
+  formulaVersion: { type: Number, default: 1 },
+  formulaSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
+  adjustmentBreakdown: { type: [adjustmentBreakdownSchema], default: [] },
 
   // SECTION C: COST BREAKDOWN
   // C.1 Restaurants
@@ -94,6 +114,8 @@ const tourEstimateSchema = new mongoose.Schema({
   }],
 
   // SECTION D: SUMMARY (Snapshot fields)
+  baseRevenue: { type: Number, default: 0 },
+  baseCost: { type: Number, default: 0 },
   totalRevenue: { type: Number, default: 0 },
   totalNtCost: { type: Number, default: 0 },
   expectedProfit: { type: Number, default: 0 },
@@ -101,5 +123,9 @@ const tourEstimateSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+tourEstimateSchema.index({ code: 1 });
+tourEstimateSchema.index({ status: 1, createdAt: -1 });
+tourEstimateSchema.index({ is_deleted: 1, createdAt: -1 });
 
 module.exports = mongoose.model('TourEstimate', tourEstimateSchema);
