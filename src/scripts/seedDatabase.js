@@ -26,7 +26,14 @@ const seedDatabase = async () => {
     pointsMap.set(point.name, point._id);
   });
 
-  // Seed Service Providers with linked points
+  const routePointMap = new Map(
+    tourismRoutes.map((route) => [
+      route.routeName,
+      route.pointNames.map(name => pointsMap.get(name)).filter(Boolean).map(id => id.toString()),
+    ])
+  );
+
+  // Seed Service Providers with linked points and linked routes
   const providersWithLinks = serviceProviders.map(provider => {
     const linkedPoints = createdPoints
       .filter(point => {
@@ -38,21 +45,40 @@ const seedDatabase = async () => {
         return distance < 0.5;
       })
       .map(point => point._id);
-    
-    return { ...provider, linkedPoints };
+
+    return { ...provider, linkedPoints, linkedRoutes: [] };
   });
-  const createdProviders = await ServiceProvider.insertMany(providersWithLinks);
-  console.log(`   ✅ Created ${createdProviders.length} service providers`);
 
   // Seed Tourism Routes
+  const createdRouteIds = new Map();
   for (const routeData of tourismRoutes) {
     const { pointNames, ...route } = routeData;
     route.points = pointNames.map(name => pointsMap.get(name)).filter(id => id);
     
     const newRoute = new TourismRoute(route);
     await newRoute.save();
+    createdRouteIds.set(route.routeName, newRoute._id);
     console.log(`   ✅ Created route: ${newRoute.routeName} (${newRoute.totalDistance} km)`);
   }
+
+  const normalizedProviders = providersWithLinks.map((provider) => {
+    const linkedRoutes = [];
+    for (const [routeName, routePointIds] of routePointMap.entries()) {
+      const touchesRoute = provider.linkedPoints.some((pointId) => routePointIds.includes(pointId.toString()));
+      if (touchesRoute) {
+        const routeId = createdRouteIds.get(routeName);
+        if (routeId) linkedRoutes.push(routeId);
+      }
+    }
+
+    return {
+      ...provider,
+      linkedRoutes,
+    };
+  });
+
+  const createdProviders = await ServiceProvider.insertMany(normalizedProviders);
+  console.log(`   ✅ Created ${createdProviders.length} service providers`);
 
   // Summary
   console.log(`   📊 Points: ${await TourismPoint.countDocuments()}, Routes: ${await TourismRoute.countDocuments()}, Providers: ${await ServiceProvider.countDocuments()}`);
@@ -68,4 +94,3 @@ if (require.main === module) {
 }
 
 module.exports = seedDatabase;
-
