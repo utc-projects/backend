@@ -19,8 +19,8 @@ const tourEstimateSchema = new mongoose.Schema({
   status: { type: String, enum: ['Draft', 'Official'], default: 'Draft' },
 
   // SECTION A: GENERAL INFO
-  code: { type: String, required: true, trim: true }, // Mã đoàn (Unique checks handled in controller/index)
-  name: { type: String, required: true, trim: true }, // Tên đoàn
+  code: { type: String, required: true, trim: true, maxlength: 200 }, // Mã đoàn (Unique checks handled in controller/index)
+  name: { type: String, required: true, trim: true, maxlength: 500 }, // Tên đoàn
   route: { type: String }, // Hành trình
   startDate: { type: Date },
   endDate: { type: Date },
@@ -127,5 +127,6 @@ const tourEstimateSchema = new mongoose.Schema({
 tourEstimateSchema.index({ code: 1 });
 tourEstimateSchema.index({ status: 1, createdAt: -1 });
 tourEstimateSchema.index({ is_deleted: 1, createdAt: -1 });
+tourEstimateSchema.index({ formulaProfileId: 1 });
 
 module.exports = mongoose.model('TourEstimate', tourEstimateSchema);

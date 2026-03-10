@@ -1,5 +1,16 @@
 const buckets = new Map();
 
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of buckets) {
+    if (bucket.resetAt < now) {
+      buckets.delete(key);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
+
 const createRateLimiter = ({
   windowMs = 60_000,
   max = 30,

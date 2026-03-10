@@ -402,7 +402,7 @@ exports.activateEstimateFormulaProfile = async (req, res) => {
     if (shouldMakeDefault) {
       await unsetDefaultFromOthers(profile._id);
       profile.isDefault = true;
-    } else if (profile.status === 'active') {
+    } else {
       profile.isDefault = false;
     }
     await profile.save();
