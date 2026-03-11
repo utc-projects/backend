@@ -17,6 +17,16 @@ const tourEstimateSchema = new mongoose.Schema({
   // META
   is_deleted: { type: Boolean, default: false },
   status: { type: String, enum: ['Draft', 'Official'], default: 'Draft' },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  ownerClass: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class',
+    default: null,
+  },
 
   // SECTION A: GENERAL INFO
   code: { type: String, required: true, trim: true, maxlength: 200 }, // Mã đoàn (Unique checks handled in controller/index)
@@ -128,5 +138,7 @@ tourEstimateSchema.index({ code: 1 });
 tourEstimateSchema.index({ status: 1, createdAt: -1 });
 tourEstimateSchema.index({ is_deleted: 1, createdAt: -1 });
 tourEstimateSchema.index({ formulaProfileId: 1 });
+tourEstimateSchema.index({ createdBy: 1, createdAt: -1 });
+tourEstimateSchema.index({ ownerClass: 1, createdAt: -1 });
 
 module.exports = mongoose.model('TourEstimate', tourEstimateSchema);
