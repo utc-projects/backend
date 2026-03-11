@@ -214,7 +214,9 @@ exports.updateProfile = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
   try {
     const { search, role, status, page = 1, limit = 10 } = req.query;
-    const query = {};
+    const query = {
+      _id: { $ne: req.user._id },
+    };
 
     if (search) {
       const searchRegex = new RegExp(search, 'i');
