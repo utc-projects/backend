@@ -22,12 +22,14 @@ const { protect, authorize } = require('../middlewares/authMiddleware');
 const requirePasswordChange = require('../middlewares/mustChangePasswordMiddleware');
 const { createRateLimiter } = require('../middlewares/rateLimit');
 
+const getNormalizedLoginIdentity = (req) => String(req.body?.email || '').trim().toLowerCase() || 'anonymous';
+
 // Rate limiters for auth endpoints
 const loginLimiter = createRateLimiter({
   windowMs: 60_000, // 1 phút
   max: 5,
   message: 'Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau 1 phút.',
-  keyGenerator: (req) => `login:${req.ip}`,
+  keyGenerator: (req) => `login:${req.ip}:${getNormalizedLoginIdentity(req)}`,
   skipSuccessfulRequests: true,
 });
 
@@ -35,7 +37,7 @@ const resetPasswordLimiter = createRateLimiter({
   windowMs: 600_000, // 10 phút
   max: 3,
   message: 'Quá nhiều lần thay đổi mật khẩu. Vui lòng thử lại sau 10 phút.',
-  keyGenerator: (req) => `reset-pwd:${req.ip}`,
+  keyGenerator: (req) => `reset-pwd:${req.user?._id?.toString() || req.ip}`,
 });
 
 // Multer config for Excel upload (memory storage, 5MB limit)
