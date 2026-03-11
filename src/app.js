@@ -32,6 +32,7 @@ const {
   noteRoutes,
   permissionRoutes,
   changeRequestRoutes,
+  classRoutes,
 } = require('./routes');
 
 app.use('/api/points', pointRoutes);
@@ -40,6 +41,7 @@ app.use('/api/providers', providerRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/change-requests', changeRequestRoutes);
+app.use('/api/classes', classRoutes);
 app.use('/api/notifications', require('./routes').notificationRoutes);
 app.use('/api/estimates', require('./routes').estimateRoutes);
 app.use('/api/estimate-formulas', require('./routes').estimateFormulaRoutes);

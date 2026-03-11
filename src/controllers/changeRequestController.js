@@ -3,6 +3,7 @@ const TourismPoint = require('../models/TourismPoint');
 const TourismRoute = require('../models/TourismRoute');
 const ServiceProvider = require('../models/ServiceProvider');
 const Notification = require('../models/Notification'); // Import Notification model
+const { canLecturerReviewRequest } = require('../services/classScopeService');
 
 // Helper to get model by type
 const getModelByType = (type) => {
@@ -15,11 +16,29 @@ const getModelByType = (type) => {
 };
 
 // Get all requests (Admin/Lecturer)
-// Get all requests (Admin/Lecturer)
+const DETAIL_POPULATE = [
+  { path: 'requester', select: 'name email avatar role studentId isActive' },
+  { path: 'reviewer', select: 'name email role' },
+  { path: 'assignedReviewer', select: 'name email role isActive' },
+  { path: 'requesterClass', select: 'name code semester isActive', populate: { path: 'lecturer', select: 'name email role isActive' } },
+];
+
+const buildScopeFilter = (req) => {
+  if (req.user.role === 'admin') {
+    return {};
+  }
+
+  if (req.user.role === 'lecturer') {
+    return { assignedReviewer: req.user._id };
+  }
+
+  return { requester: req.user._id };
+};
+
 exports.getAllRequests = async (req, res) => {
   try {
     const { status, type, page = 1, limit = 10 } = req.query;
-    const filter = {};
+    const filter = buildScopeFilter(req);
     
     if (status) {
       if (status === 'history') {
@@ -37,8 +56,7 @@ exports.getAllRequests = async (req, res) => {
 
     const total = await ChangeRequest.countDocuments(filter);
     const requests = await ChangeRequest.find(filter)
-      .populate('requester', 'name email avatar')
-      .populate('reviewer', 'name email')
+      .populate(DETAIL_POPULATE)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -81,8 +99,7 @@ exports.getMyRequests = async (req, res) => {
 
     const total = await ChangeRequest.countDocuments(filter);
     const requests = await ChangeRequest.find(filter)
-      .populate('requester', 'name email avatar')
-      .populate('reviewer', 'name email')
+      .populate(DETAIL_POPULATE)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -108,6 +125,10 @@ exports.approveRequest = async (req, res) => {
     const request = await ChangeRequest.findById(req.params.id);
     if (!request) {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu' });
+    }
+
+    if (req.user.role === 'lecturer' && !canLecturerReviewRequest(req.user._id, request)) {
+      return res.status(403).json({ message: 'Bạn không có quyền duyệt yêu cầu này' });
     }
 
     if (request.status !== 'pending') {
@@ -195,6 +216,10 @@ exports.rejectRequest = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu' });
     }
 
+    if (req.user.role === 'lecturer' && !canLecturerReviewRequest(req.user._id, request)) {
+      return res.status(403).json({ message: 'Bạn không có quyền từ chối yêu cầu này' });
+    }
+
     if (request.status !== 'pending') {
       return res.status(400).json({ message: 'Yêu cầu này đã được xử lý' });
     }
@@ -231,11 +256,18 @@ exports.rejectRequest = async (req, res) => {
 exports.getRequestById = async (req, res) => {
   try {
     const request = await ChangeRequest.findById(req.params.id)
-      .populate('requester', 'name email avatar')
-      .populate('reviewer', 'name email');
+      .populate(DETAIL_POPULATE);
 
     if (!request) {
       return res.status(404).json({ message: 'Không tìm thấy yêu cầu' });
+    }
+
+    if (req.user.role === 'lecturer' && !canLecturerReviewRequest(req.user._id, request)) {
+      return res.status(403).json({ message: 'Bạn không có quyền truy cập yêu cầu này' });
+    }
+
+    if (req.user.role === 'student' && String(request.requester?._id || request.requester) !== String(req.user._id)) {
+      return res.status(403).json({ message: 'Bạn không có quyền truy cập yêu cầu này' });
     }
 
     res.json(request);

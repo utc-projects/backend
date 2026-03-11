@@ -31,6 +31,12 @@ const permissionSchema = new mongoose.Schema({
       create: { type: Boolean, default: false },
       edit: { type: Boolean, default: false },
       delete: { type: Boolean, default: false }
+    },
+    classes: {
+      view: { type: Boolean, default: false },
+      create: { type: Boolean, default: false },
+      edit: { type: Boolean, default: false },
+      delete: { type: Boolean, default: false }
     }
   },
   updatedAt: {

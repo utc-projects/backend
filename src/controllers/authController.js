@@ -1,6 +1,71 @@
 const crypto = require('crypto');
 const User = require('../models/User');
 const { parseExcelBuffer, validateRows, commitImport } = require('../services/studentImportService');
+const ClassModel = require('../models/Class');
+const {
+  attachCurrentClassToUsers,
+  ensureLecturerCanBeModified,
+  ensureStudentCanBeModified,
+} = require('../services/classScopeService');
+
+async function buildUserListQuery(req) {
+  const { search, role, status, classId, unassignedOnly } = req.query;
+  const query = {
+    _id: { $ne: req.user._id },
+  };
+
+  if (search) {
+    const searchRegex = new RegExp(search, 'i');
+    query.$or = [
+      { name: searchRegex },
+      { email: searchRegex },
+      { studentId: searchRegex }
+    ];
+  }
+
+  if (role && role !== 'all') {
+    query.role = role;
+  }
+
+  if (status && status !== 'all') {
+    if (status === 'active') query.isActive = true;
+    if (status === 'inactive') query.isActive = false;
+  }
+
+  if (classId && classId !== 'all') {
+    const classDoc = await ClassModel.findById(classId).select('students');
+    query._id = {
+      ...query._id,
+      $in: classDoc ? classDoc.students : [],
+    };
+  }
+
+  if (String(unassignedOnly) === 'true') {
+    query.role = 'student';
+    const assignedClasses = await ClassModel.find({ isActive: true }).select('students');
+    const assignedStudentIds = [...new Set(assignedClasses.flatMap((item) => item.students.map((id) => String(id))))];
+    query._id = {
+      ...query._id,
+      $nin: assignedStudentIds,
+    };
+  }
+
+  return query;
+}
+
+async function assertUserLifecycleConstraints(user, { nextRole = null, nextIsActive = null, mode = 'update' } = {}) {
+  const resultingRole = nextRole || user.role;
+  const resultingActive = nextIsActive === null || nextIsActive === undefined ? user.isActive : nextIsActive;
+  const deactivatingLecturer = user.role === 'lecturer' && user.isActive === true && resultingActive === false;
+
+  if (user.role === 'lecturer' && (mode === 'delete' || resultingRole !== 'lecturer' || deactivatingLecturer)) {
+    await ensureLecturerCanBeModified(user._id);
+  }
+
+  if (user.role === 'student' && (mode === 'delete' || resultingRole !== 'student')) {
+    await ensureStudentCanBeModified(user._id);
+  }
+}
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -213,28 +278,8 @@ exports.updateProfile = async (req, res) => {
 // @access  Private/Admin
 exports.getAllUsers = async (req, res) => {
   try {
-    const { search, role, status, page = 1, limit = 10 } = req.query;
-    const query = {
-      _id: { $ne: req.user._id },
-    };
-
-    if (search) {
-      const searchRegex = new RegExp(search, 'i');
-      query.$or = [
-        { name: searchRegex },
-        { email: searchRegex },
-        { studentId: searchRegex }
-      ];
-    }
-
-    if (role && role !== 'all') {
-      query.role = role;
-    }
-
-    if (status && status !== 'all') {
-      if (status === 'active') query.isActive = true;
-      if (status === 'inactive') query.isActive = false;
-    }
+    const { page = 1, limit = 10 } = req.query;
+    const query = await buildUserListQuery(req);
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -245,11 +290,12 @@ exports.getAllUsers = async (req, res) => {
       .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(limitNum);
+    const usersWithClass = await attachCurrentClassToUsers(users);
 
     res.json({
       success: true,
-      count: users.length,
-      users,
+      count: usersWithClass.length,
+      users: usersWithClass,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -273,22 +319,21 @@ exports.updateUserRole = async (req, res) => {
       return res.status(400).json({ message: 'Role không hợp lệ' });
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { role },
-      { new: true }
-    );
-
-    if (!user) {
+    const existingUser = await User.findById(req.params.id);
+    if (!existingUser) {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' });
     }
+
+    await assertUserLifecycleConstraints(existingUser, { nextRole: role });
+
+    const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true });
 
     res.json({
       success: true,
       user,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
+    res.status(error.status || 400).json({ message: error.message || 'Cập nhật thất bại' });
   }
 };
 
@@ -303,6 +348,10 @@ exports.toggleUserActive = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' });
     }
 
+    if (user.isActive) {
+      await assertUserLifecycleConstraints(user, { nextIsActive: false });
+    }
+
     user.isActive = !user.isActive;
     await user.save();
 
@@ -311,7 +360,7 @@ exports.toggleUserActive = async (req, res) => {
       user,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
+    res.status(error.status || 400).json({ message: error.message || 'Cập nhật thất bại' });
   }
 };
 
@@ -397,6 +446,16 @@ exports.updateUser = async (req, res) => {
       }
     }
 
+    const existingUser = await User.findById(req.params.id);
+    if (!existingUser) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    }
+
+    await assertUserLifecycleConstraints(existingUser, {
+      nextRole: role || existingUser.role,
+      nextIsActive: isActive,
+    });
+
     const updateData = {};
     if (name) updateData.name = name;
     if (email) updateData.email = email;
@@ -406,11 +465,7 @@ exports.updateUser = async (req, res) => {
     if (isActive !== undefined) updateData.isActive = isActive;
 
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    const user = await User.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
 
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' });
@@ -421,7 +476,7 @@ exports.updateUser = async (req, res) => {
       user,
     });
   } catch (error) {
-    res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
+    res.status(error.status || 400).json({ message: error.message || 'Cập nhật thất bại' });
   }
 };
 
@@ -441,6 +496,8 @@ exports.deleteUser = async (req, res) => {
       return res.status(400).json({ message: 'Không thể xóa tài khoản của chính mình' });
     }
 
+    await assertUserLifecycleConstraints(user, { mode: 'delete' });
+
     await User.findByIdAndDelete(req.params.id);
 
     res.json({
@@ -448,7 +505,7 @@ exports.deleteUser = async (req, res) => {
       message: 'Đã xóa người dùng thành công',
     });
   } catch (error) {
-    res.status(400).json({ message: 'Xóa thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
+    res.status(error.status || 400).json({ message: error.message || 'Xóa thất bại' });
   }
 };
 

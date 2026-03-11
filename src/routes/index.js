@@ -4,6 +4,7 @@ const providerRoutes = require('./providerRoutes');
 const authRoutes = require('./authRoutes');
 const noteRoutes = require('./noteRoutes');
 const permissionRoutes = require('./permissionRoutes');
+const classRoutes = require('./classRoutes');
 
 module.exports = {
   pointRoutes,
@@ -12,6 +13,7 @@ module.exports = {
   authRoutes,
   noteRoutes,
   permissionRoutes,
+  classRoutes,
   changeRequestRoutes: require('./changeRequestRoutes'),
 
   estimateRoutes: require('./estimateRoutes'),

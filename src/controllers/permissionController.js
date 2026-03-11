@@ -6,14 +6,27 @@ const DEFAULT_PERMISSIONS = {
     points: { view: true, create: true, edit: true, delete: false },
     routes: { view: true, create: true, edit: true, delete: false },
     providers: { view: true, create: true, edit: true, delete: false },
-    users: { view: false, create: false, edit: false, delete: false }
+    users: { view: false, create: false, edit: false, delete: false },
+    classes: { view: true, create: false, edit: true, delete: false }
   },
   student: {
     points: { view: true, create: false, edit: false, delete: false },
     routes: { view: true, create: false, edit: false, delete: false },
     providers: { view: true, create: false, edit: false, delete: false },
-    users: { view: false, create: false, edit: false, delete: false }
+    users: { view: false, create: false, edit: false, delete: false },
+    classes: { view: true, create: false, edit: false, delete: false }
   }
+};
+
+const mergeResourceDefaults = (resources = {}, defaults = {}) => {
+  const merged = {};
+  for (const [resourceKey, defaultActions] of Object.entries(defaults)) {
+    merged[resourceKey] = {
+      ...defaultActions,
+      ...(resources[resourceKey] || {}),
+    };
+  }
+  return merged;
 };
 
 // Initialize permissions if they don't exist
@@ -24,6 +37,15 @@ exports.initPermissions = async () => {
       if (!exists) {
         await Permission.create({ role, resources });
         console.log(`Initialized default permissions for role: ${role}`);
+      } else {
+        const mergedResources = mergeResourceDefaults(exists.resources || {}, resources);
+        const changed = JSON.stringify(exists.resources || {}) !== JSON.stringify(mergedResources);
+        if (changed) {
+          exists.resources = mergedResources;
+          exists.updatedAt = Date.now();
+          await exists.save();
+          console.log(`Merged default permissions for role: ${role}`);
+        }
       }
     }
   } catch (error) {
@@ -63,7 +85,7 @@ exports.updatePermission = async (req, res) => {
 
     const permission = await Permission.findOneAndUpdate(
       { role },
-      { resources, updatedAt: Date.now() },
+      { resources: mergeResourceDefaults(resources, DEFAULT_PERMISSIONS[role]), updatedAt: Date.now() },
       { new: true, upsert: true } // Create if not exists
     );
 

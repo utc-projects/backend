@@ -14,6 +14,7 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 
 const seedUsers = require('./seedUsers');
+const seedClasses = require('./seedClasses');
 const seedDatabase = require('./seedDatabase');
 const seedEstimateFormulaProfiles = require('./seedEstimateFormulaProfiles');
 const seedEstimates = require('./seedEstimates');
@@ -25,6 +26,7 @@ const seedAll = async () => {
     console.log('🌱 Starting full database seed...\n');
 
     await seedUsers();
+    await seedClasses();
     await seedDatabase();
     await seedEstimateFormulaProfiles();
     await seedEstimates();
