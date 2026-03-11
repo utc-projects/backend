@@ -53,7 +53,6 @@ const estimateFormulaProfileSchema = new mongoose.Schema({
   isDefault: {
     type: Boolean,
     default: false,
-    index: true,
   },
   effectiveFrom: {
     type: Date,

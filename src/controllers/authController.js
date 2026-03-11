@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const User = require('../models/User');
+const { parseExcelBuffer, validateRows, commitImport } = require('../services/studentImportService');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -89,6 +90,7 @@ exports.login = async (req, res) => {
         roleLabel: user.roleLabel,
         department: user.department,
         avatar: user.avatar,
+        mustChangePassword: user.mustChangePassword || false,
       },
     });
   } catch (error) {
@@ -113,6 +115,7 @@ exports.getMe = async (req, res) => {
         studentId: user.studentId,
         department: user.department,
         avatar: user.avatar,
+        mustChangePassword: user.mustChangePassword || false,
         createdAt: user.createdAt,
       },
     });
@@ -146,8 +149,9 @@ exports.updatePassword = async (req, res) => {
       return res.status(401).json({ message: 'Mật khẩu hiện tại không đúng' });
     }
 
-    // Set new password
+    // Set new password and clear mustChangePassword
     user.password = newPassword;
+    user.mustChangePassword = false;
     await user.save();
 
     // Generate new token
@@ -165,6 +169,7 @@ exports.updatePassword = async (req, res) => {
         roleLabel: user.roleLabel,
         department: user.department,
         avatar: user.avatar,
+        mustChangePassword: false,
       },
     });
   } catch (error) {
@@ -322,6 +327,7 @@ exports.resetUserPassword = async (req, res) => {
     const newPassword = crypto.randomBytes(9).toString('base64url');
 
     user.password = newPassword;
+    user.mustChangePassword = true;
     await user.save();
 
     res.json({
@@ -441,5 +447,89 @@ exports.deleteUser = async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ message: 'Xóa thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
+  }
+};
+
+// @desc    Preview import students from Excel
+// @route   POST /api/auth/users/import-students/preview
+// @access  Private/Admin
+exports.importStudentsPreview = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Vui lòng chọn file Excel' });
+    }
+
+    const rows = parseExcelBuffer(req.file.buffer);
+    const result = await validateRows(rows);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    const status = error.status || 400;
+    res.status(status).json({ message: error.message || 'Lỗi xử lý file', ...(process.env.NODE_ENV === 'development' && !error.status && { error: error.message }) });
+  }
+};
+
+// @desc    Commit import students from Excel
+// @route   POST /api/auth/users/import-students/commit
+// @access  Private/Admin
+exports.importStudentsCommit = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Vui lòng chọn file Excel' });
+    }
+
+    const rows = parseExcelBuffer(req.file.buffer);
+    const validation = await validateRows(rows);
+
+    if (validation.validCount === 0) {
+      return res.status(400).json({
+        message: 'Không có dòng hợp lệ để import',
+        errors: validation.errors,
+      });
+    }
+
+    const { created, commitErrors } = await commitImport(validation.validRows);
+
+    res.json({
+      success: true,
+      createdCount: created.length,
+      created,
+      commitErrors,
+      skippedErrors: validation.errors,
+    });
+  } catch (error) {
+    const status = error.status || 400;
+    res.status(status).json({ message: error.message || 'Lỗi import', ...(process.env.NODE_ENV === 'development' && !error.status && { error: error.message }) });
+  }
+};
+
+// @desc    Download import template
+// @route   GET /api/auth/users/import-students/template
+// @access  Private/Admin
+exports.importStudentsTemplate = async (req, res) => {
+  try {
+    const XLSX = require('xlsx');
+    const data = [
+      { 'Họ và tên': 'Nguyễn Văn A', 'Email': 'nguyenvana@tourism.edu.vn', 'Mã sinh viên': 'SV2026001', 'Khoa': 'Khoa Du lịch' },
+      { 'Họ và tên': 'Trần Thị B', 'Email': 'tranthib@tourism.edu.vn', 'Mã sinh viên': 'SV2026002', 'Khoa': 'Khoa Du lịch' },
+      { 'Họ và tên': 'Lê Văn C', 'Email': 'levanc@tourism.edu.vn', 'Mã sinh viên': 'SV2026003', 'Khoa': 'Khoa Khách sạn' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Danh sách sinh viên');
+
+    // Set column widths
+    ws['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 20 }];
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=mau_import_sinh_vien.xlsx');
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi tạo file mẫu' });
   }
 };

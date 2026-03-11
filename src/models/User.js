@@ -30,6 +30,12 @@ const userSchema = new mongoose.Schema({
   studentId: {
     type: String,
     trim: true,
+    sparse: true,
+    unique: true,
+  },
+  mustChangePassword: {
+    type: Boolean,
+    default: false,
   },
   department: {
     type: String,

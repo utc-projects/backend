@@ -47,13 +47,25 @@ app.use('/api/estimate-formulas', require('./routes').estimateFormulaRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  // Handle multer errors
+  const multer = require('multer');
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'File vượt quá giới hạn dung lượng cho phép (5MB)' });
+    }
+    return res.status(400).json({ message: `Lỗi upload file: ${err.message}` });
+  }
+  if (err.message && err.message.includes('Chỉ chấp nhận file')) {
+    return res.status(400).json({ message: err.message });
+  }
+
   logger.error('http.unhandled_error', {
     method: req.method,
     path: req.originalUrl,
     error: err,
   });
-  res.status(500).json({ 
-    message: 'Something went wrong!',
+  res.status(500).json({
+    message: 'Có lỗi xảy ra trong quá trình xử lý yêu cầu',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
