@@ -4,9 +4,22 @@ const { parseExcelBuffer, validateRows, commitImport } = require('../services/st
 const ClassModel = require('../models/Class');
 const {
   attachCurrentClassToUsers,
+  canLecturerManageStudent,
   ensureLecturerCanBeModified,
   ensureStudentCanBeModified,
 } = require('../services/classScopeService');
+
+function generateRandomPassword() {
+  return crypto.randomBytes(9).toString('base64url');
+}
+
+function assertStudentResetAllowed(user) {
+  if (user?.role === 'student' && user.isActive === false) {
+    const error = new Error('Không thể reset mật khẩu cho sinh viên đang bị vô hiệu hóa');
+    error.status = 400;
+    throw error;
+  }
+}
 
 async function buildUserListQuery(req) {
   const { search, role, status, classId, unassignedOnly } = req.query;
@@ -375,7 +388,9 @@ exports.resetUserPassword = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' });
     }
 
-    const newPassword = crypto.randomBytes(9).toString('base64url');
+    assertStudentResetAllowed(user);
+
+    const newPassword = generateRandomPassword();
 
     user.password = newPassword;
     user.mustChangePassword = true;
@@ -387,6 +402,48 @@ exports.resetUserPassword = async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ message: 'Reset mật khẩu thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
+  }
+};
+
+// @desc    Reset student password within class scope
+// @route   PUT /api/auth/users/:id/reset-student-password
+// @access  Private/Admin,Lecturer with class edit permission
+exports.resetStudentPassword = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    }
+
+    if (user.role !== 'student') {
+      return res.status(400).json({ message: 'Chỉ có thể reset mật khẩu cho tài khoản sinh viên' });
+    }
+
+    assertStudentResetAllowed(user);
+
+    if (req.user.role === 'lecturer') {
+      const canManageStudent = await canLecturerManageStudent(req.user._id, user._id);
+      if (!canManageStudent) {
+        return res.status(403).json({ message: 'Bạn chỉ có thể reset mật khẩu cho sinh viên thuộc lớp mình phụ trách' });
+      }
+    }
+
+    const newPassword = generateRandomPassword();
+
+    user.password = newPassword;
+    user.mustChangePassword = true;
+    await user.save();
+
+    res.json({
+      success: true,
+      newPassword,
+    });
+  } catch (error) {
+    res.status(400).json({
+      message: 'Reset mật khẩu sinh viên thất bại',
+      ...(process.env.NODE_ENV === 'development' && { error: error.message }),
+    });
   }
 };
 

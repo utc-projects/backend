@@ -111,6 +111,20 @@ async function canLecturerAccessClass(lecturerId, classIdOrDoc) {
   return count > 0;
 }
 
+async function canLecturerManageStudent(lecturerId, studentId) {
+  if (!lecturerId || !studentId) {
+    return false;
+  }
+
+  const count = await ClassModel.countDocuments({
+    lecturer: lecturerId,
+    students: studentId,
+    isActive: true,
+  });
+
+  return count > 0;
+}
+
 function canLecturerReviewRequest(lecturerId, changeRequest) {
   if (!lecturerId || !changeRequest) {
     return false;
@@ -245,6 +259,7 @@ async function ensureStudentsNotInOtherActiveClasses(studentIds, targetClassId =
 module.exports = {
   attachCurrentClassToUsers,
   canLecturerAccessClass,
+  canLecturerManageStudent,
   canLecturerReviewRequest,
   ensureLecturerCanBeModified,
   ensureStudentCanBeModified,

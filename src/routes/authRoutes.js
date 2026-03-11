@@ -11,6 +11,7 @@ const {
   updateUserRole,
   toggleUserActive,
   resetUserPassword,
+  resetStudentPassword,
   createUser,
   updateUser,
   deleteUser,
@@ -76,6 +77,7 @@ router.put('/users/:id', protect, requirePasswordChange, authorize('users', 'edi
 router.put('/users/:id/role', protect, requirePasswordChange, authorize('users', 'edit'), updateUserRole);
 router.put('/users/:id/toggle-active', protect, requirePasswordChange, authorize('users', 'edit'), toggleUserActive);
 router.put('/users/:id/reset-password', protect, requirePasswordChange, authorize('users', 'edit'), resetUserPassword);
+router.put('/users/:id/reset-student-password', protect, requirePasswordChange, authorize('classes', 'edit'), resetStudentPassword);
 router.delete('/users/:id', protect, requirePasswordChange, authorize('users', 'delete'), deleteUser);
 
 // Import students routes
