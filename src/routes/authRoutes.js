@@ -20,6 +20,23 @@ const {
 } = require('../controllers/authController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const requirePasswordChange = require('../middlewares/mustChangePasswordMiddleware');
+const { createRateLimiter } = require('../middlewares/rateLimit');
+
+// Rate limiters for auth endpoints
+const loginLimiter = createRateLimiter({
+  windowMs: 60_000, // 1 phút
+  max: 5,
+  message: 'Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau 1 phút.',
+  keyGenerator: (req) => `login:${req.ip}`,
+  skipSuccessfulRequests: true,
+});
+
+const resetPasswordLimiter = createRateLimiter({
+  windowMs: 600_000, // 10 phút
+  max: 3,
+  message: 'Quá nhiều lần thay đổi mật khẩu. Vui lòng thử lại sau 10 phút.',
+  keyGenerator: (req) => `reset-pwd:${req.ip}`,
+});
 
 // Multer config for Excel upload (memory storage, 5MB limit)
 const excelUpload = multer({
@@ -40,11 +57,11 @@ const excelUpload = multer({
 
 // Public routes
 // router.post('/register', register); // temporarily disabled public self-registration
-router.post('/login', login);
+router.post('/login', loginLimiter, login);
 
 // Protected routes (exempt from mustChangePassword check)
 router.get('/me', protect, getMe);
-router.put('/update-password', protect, updatePassword);
+router.put('/update-password', protect, resetPasswordLimiter, updatePassword);
 
 // Protected routes (require password changed)
 router.put('/profile', protect, requirePasswordChange, updateProfile);

@@ -16,6 +16,7 @@ const createRateLimiter = ({
   max = 30,
   message = 'Too many requests',
   keyGenerator,
+  skipSuccessfulRequests = false,
 } = {}) => {
   return (req, res, next) => {
     const key = keyGenerator ? keyGenerator(req) : (req.user?._id?.toString() || req.ip || 'anonymous');
@@ -27,6 +28,16 @@ const createRateLimiter = ({
         count: 1,
         resetAt: now + windowMs,
       });
+
+      if (skipSuccessfulRequests) {
+        const bucket = buckets.get(key);
+        res.on('finish', () => {
+          if (res.statusCode < 400 && bucket.count > 0) {
+            bucket.count -= 1;
+          }
+        });
+      }
+
       return next();
     }
 
@@ -42,6 +53,15 @@ const createRateLimiter = ({
 
     currentBucket.count += 1;
     buckets.set(key, currentBucket);
+
+    if (skipSuccessfulRequests) {
+      res.on('finish', () => {
+        if (res.statusCode < 400 && currentBucket.count > 0) {
+          currentBucket.count -= 1;
+        }
+      });
+    }
+
     return next();
   };
 };
