@@ -3,6 +3,7 @@ const TourEstimate = require('../models/TourEstimate');
 const { calculateEstimate } = require('../services/estimateCalculationService');
 const { findClassOfStudent, getLecturerOwnedActiveClasses } = require('../services/classScopeService');
 const logger = require('../utils/logger');
+const { auditSuccess, auditDenied, auditFailed } = require('../services/auditLogService');
 
 const MAX_PAGINATION_LIMIT = 100;
 
@@ -141,10 +142,29 @@ exports.createEstimate = async (req, res) => {
       userId: req.user?._id?.toString(),
       formulaProfileId: estimate.formulaProfileId?.toString() || null,
     });
+    await auditSuccess(req, {
+      event: 'estimate.created',
+      module: 'estimate',
+      action: 'create',
+      target: { type: 'estimate', id: estimate._id, label: estimate.code, secondaryId: estimate.name || '' },
+      summary: `${req.user.email} đã tạo dự toán ${estimate.code}`,
+      changes: {
+        status: estimate.status,
+        ownerClass: estimate.ownerClass?._id || estimate.ownerClass || null,
+      },
+    });
     res.status(201).json({ success: true, data: estimate });
   } catch (error) {
     logger.error('estimate.create_failed', {
       userId: req.user?._id?.toString(),
+      error,
+    });
+    await auditFailed(req, {
+      event: 'estimate.created',
+      module: 'estimate',
+      action: 'create',
+      target: { type: 'estimate', label: req.body?.code || req.body?.name || '' },
+      summary: 'Tạo dự toán thất bại',
       error,
     });
     res.status(error.statusCode || 400).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
@@ -228,6 +248,14 @@ exports.getEstimateById = async (req, res) => {
     }
 
     if (!canReadEstimate(estimate, req, scopeContext)) {
+      await auditDenied(req, {
+        event: 'estimate.access_denied',
+        module: 'estimate',
+        action: 'read',
+        target: { type: 'estimate', id: estimate._id, label: estimate.code },
+        summary: `Từ chối xem dự toán ${estimate.code}`,
+        reason: 'FORBIDDEN',
+      });
       return res.status(403).json({ success: false, message: 'Bạn không có quyền xem dự toán này' });
     }
 
@@ -254,6 +282,14 @@ exports.updateEstimate = async (req, res) => {
     }
 
     if (!canMutateEstimate(estimate, req)) {
+      await auditDenied(req, {
+        event: 'estimate.access_denied',
+        module: 'estimate',
+        action: 'update',
+        target: { type: 'estimate', id: estimate._id, label: estimate.code },
+        summary: `Từ chối cập nhật dự toán ${estimate.code}`,
+        reason: 'FORBIDDEN',
+      });
       return res.status(403).json({ success: false, message: 'Bạn không có quyền chỉnh sửa dự toán này' });
     }
 
@@ -275,11 +311,27 @@ exports.updateEstimate = async (req, res) => {
       userId: req.user?._id?.toString(),
       formulaProfileId: estimate.formulaProfileId?.toString() || null,
     });
+    await auditSuccess(req, {
+      event: 'estimate.updated',
+      module: 'estimate',
+      action: 'update',
+      target: { type: 'estimate', id: estimate._id, label: estimate.code },
+      summary: `${req.user.email} đã cập nhật dự toán ${estimate.code}`,
+      changes: { status: estimate.status },
+    });
     res.status(200).json({ success: true, data: estimate });
   } catch (error) {
     logger.error('estimate.update_failed', {
       estimateId: req.params.id,
       userId: req.user?._id?.toString(),
+      error,
+    });
+    await auditFailed(req, {
+      event: 'estimate.updated',
+      module: 'estimate',
+      action: 'update',
+      target: { type: 'estimate', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật dự toán thất bại',
       error,
     });
     res.status(error.statusCode || 400).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
@@ -313,6 +365,14 @@ exports.deleteEstimate = async (req, res) => {
     }
 
     if (!canMutateEstimate(estimate, req)) {
+      await auditDenied(req, {
+        event: 'estimate.access_denied',
+        module: 'estimate',
+        action: 'delete',
+        target: { type: 'estimate', id: estimate._id, label: estimate.code },
+        summary: `Từ chối xóa dự toán ${estimate.code}`,
+        reason: 'FORBIDDEN',
+      });
       return res.status(403).json({ success: false, message: 'Bạn không có quyền xóa dự toán này' });
     }
 
@@ -324,12 +384,27 @@ exports.deleteEstimate = async (req, res) => {
       code: estimate.code,
       userId: req.user?._id?.toString(),
     });
+    await auditSuccess(req, {
+      event: 'estimate.deleted',
+      module: 'estimate',
+      action: 'delete',
+      target: { type: 'estimate', id: estimate._id, label: estimate.code },
+      summary: `${req.user.email} đã xóa dự toán ${estimate.code}`,
+    });
 
     res.status(200).json({ success: true, message: 'Estimate deleted successfully (Soft)' });
   } catch (error) {
     logger.error('estimate.delete_failed', {
       estimateId: req.params.id,
       userId: req.user?._id?.toString(),
+      error,
+    });
+    await auditFailed(req, {
+      event: 'estimate.deleted',
+      module: 'estimate',
+      action: 'delete',
+      target: { type: 'estimate', id: req.params.id, label: req.params.id },
+      summary: 'Xóa dự toán thất bại',
       error,
     });
     res.status(getErrorStatusCode(error, 500)).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
@@ -347,6 +422,14 @@ exports.cloneEstimate = async (req, res) => {
     }
 
     if (!canMutateEstimate(source, req)) {
+      await auditDenied(req, {
+        event: 'estimate.access_denied',
+        module: 'estimate',
+        action: 'clone',
+        target: { type: 'estimate', id: source._id, label: source.code },
+        summary: `Từ chối sao chép dự toán ${source.code}`,
+        reason: 'FORBIDDEN',
+      });
       return res.status(403).json({ success: false, message: 'Bạn không có quyền sao chép dự toán này' });
     }
 
@@ -382,12 +465,28 @@ exports.cloneEstimate = async (req, res) => {
       code: newEstimate.code,
       userId: req.user?._id?.toString(),
     });
+    await auditSuccess(req, {
+      event: 'estimate.cloned',
+      module: 'estimate',
+      action: 'clone',
+      target: { type: 'estimate', id: newEstimate._id, label: newEstimate.code },
+      summary: `${req.user.email} đã sao chép dự toán ${source.code} thành ${newEstimate.code}`,
+      metadata: { sourceEstimateId: source._id },
+    });
 
     res.status(201).json({ success: true, data: newEstimate });
   } catch (error) {
     logger.error('estimate.clone_failed', {
       sourceEstimateId: req.params.id,
       userId: req.user?._id?.toString(),
+      error,
+    });
+    await auditFailed(req, {
+      event: 'estimate.cloned',
+      module: 'estimate',
+      action: 'clone',
+      target: { type: 'estimate', id: req.params.id, label: req.params.id },
+      summary: 'Sao chép dự toán thất bại',
       error,
     });
     res.status(error.statusCode || 400).json({ success: false, ...(process.env.NODE_ENV === 'development' && { error: error.message }) });

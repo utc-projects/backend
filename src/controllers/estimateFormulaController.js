@@ -6,6 +6,7 @@ const {
   ensureDefaultEstimateFormulaProfile,
 } = require('../services/estimateCalculationService');
 const logger = require('../utils/logger');
+const { auditSuccess, auditDenied, auditFailed } = require('../services/auditLogService');
 
 const MAX_PAGINATION_LIMIT = 100;
 const MAX_POLICY_NAME_LENGTH = 200;
@@ -297,6 +298,14 @@ exports.createEstimateFormulaProfile = async (req, res) => {
       version: profile.version,
       userId: req.user?._id?.toString(),
     });
+    await auditSuccess(req, {
+      event: 'estimate_formula.created',
+      module: 'estimate_formula',
+      action: 'create',
+      target: { type: 'estimate_formula', id: profile._id, label: profile.name, secondaryId: profile.familyKey },
+      summary: `${req.user.email} đã tạo chính sách báo giá ${profile.name}`,
+      changes: { version: profile.version, status: profile.status, isDefault: profile.isDefault },
+    });
 
     res.status(201).json({
       success: true,
@@ -305,6 +314,14 @@ exports.createEstimateFormulaProfile = async (req, res) => {
   } catch (error) {
     logger.error('estimate_formula.create_failed', {
       userId: req.user?._id?.toString(),
+      error,
+    });
+    await auditFailed(req, {
+      event: 'estimate_formula.created',
+      module: 'estimate_formula',
+      action: 'create',
+      target: { type: 'estimate_formula', label: req.body?.name || '' },
+      summary: 'Tạo chính sách báo giá thất bại',
       error,
     });
     res.status(getErrorStatusCode(error, 400)).json({
@@ -363,6 +380,15 @@ exports.updateEstimateFormulaProfile = async (req, res) => {
       version: nextProfile.version,
       userId: req.user?._id?.toString(),
     });
+    await auditSuccess(req, {
+      event: 'estimate_formula.updated',
+      module: 'estimate_formula',
+      action: 'update',
+      target: { type: 'estimate_formula', id: nextProfile._id, label: nextProfile.name, secondaryId: nextProfile.familyKey },
+      summary: `${req.user.email} đã cập nhật chính sách báo giá ${nextProfile.name}`,
+      metadata: { sourceFormulaProfileId: sourceProfile._id },
+      changes: { version: nextProfile.version, status: nextProfile.status, isDefault: nextProfile.isDefault },
+    });
 
     res.json({
       success: true,
@@ -373,6 +399,14 @@ exports.updateEstimateFormulaProfile = async (req, res) => {
     logger.error('estimate_formula.update_failed', {
       formulaProfileId: req.params.id,
       userId: req.user?._id?.toString(),
+      error,
+    });
+    await auditFailed(req, {
+      event: 'estimate_formula.updated',
+      module: 'estimate_formula',
+      action: 'update',
+      target: { type: 'estimate_formula', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật chính sách báo giá thất bại',
       error,
     });
     res.status(getErrorStatusCode(error, 400)).json({
@@ -413,6 +447,14 @@ exports.activateEstimateFormulaProfile = async (req, res) => {
       isDefault: profile.isDefault,
       userId: req.user?._id?.toString(),
     });
+    await auditSuccess(req, {
+      event: 'estimate_formula.activated',
+      module: 'estimate_formula',
+      action: 'activate',
+      target: { type: 'estimate_formula', id: profile._id, label: profile.name, secondaryId: profile.familyKey },
+      summary: `${req.user.email} đã kích hoạt chính sách báo giá ${profile.name}`,
+      changes: { status: profile.status, isDefault: profile.isDefault },
+    });
 
     res.json({
       success: true,
@@ -422,6 +464,14 @@ exports.activateEstimateFormulaProfile = async (req, res) => {
     logger.error('estimate_formula.activate_failed', {
       formulaProfileId: req.params.id,
       userId: req.user?._id?.toString(),
+      error,
+    });
+    await auditFailed(req, {
+      event: 'estimate_formula.activated',
+      module: 'estimate_formula',
+      action: 'activate',
+      target: { type: 'estimate_formula', id: req.params.id, label: req.params.id },
+      summary: 'Kích hoạt chính sách báo giá thất bại',
       error,
     });
     res.status(getErrorStatusCode(error, 400)).json({
@@ -450,6 +500,15 @@ exports.archiveEstimateFormulaProfile = async (req, res) => {
     });
 
     if (inUseCount > 0 && req.body?.force !== true) {
+      await auditDenied(req, {
+        event: 'estimate_formula.archived',
+        module: 'estimate_formula',
+        action: 'archive',
+        target: { type: 'estimate_formula', id: profile._id, label: profile.name, secondaryId: profile.familyKey },
+        summary: `Từ chối lưu trữ chính sách ${profile.name} vì đang được sử dụng`,
+        reason: 'IN_USE',
+        changes: { inUseCount },
+      });
       return res.status(409).json({
         success: false,
         message: `Chính sách này đang được ${inUseCount} dự toán sử dụng. Bạn có chắc chắn vẫn muốn lưu trữ không?`,
@@ -469,6 +528,14 @@ exports.archiveEstimateFormulaProfile = async (req, res) => {
       inUseCount,
       userId: req.user?._id?.toString(),
     });
+    await auditSuccess(req, {
+      event: 'estimate_formula.archived',
+      module: 'estimate_formula',
+      action: 'archive',
+      target: { type: 'estimate_formula', id: profile._id, label: profile.name, secondaryId: profile.familyKey },
+      summary: `${req.user.email} đã lưu trữ chính sách báo giá ${profile.name}`,
+      changes: { inUseCount, status: profile.status },
+    });
 
     res.json({
       success: true,
@@ -478,6 +545,14 @@ exports.archiveEstimateFormulaProfile = async (req, res) => {
     logger.error('estimate_formula.archive_failed', {
       formulaProfileId: req.params.id,
       userId: req.user?._id?.toString(),
+      error,
+    });
+    await auditFailed(req, {
+      event: 'estimate_formula.archived',
+      module: 'estimate_formula',
+      action: 'archive',
+      target: { type: 'estimate_formula', id: req.params.id, label: req.params.id },
+      summary: 'Lưu trữ chính sách báo giá thất bại',
       error,
     });
     res.status(getErrorStatusCode(error, 400)).json({

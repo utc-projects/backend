@@ -7,6 +7,7 @@ const {
   validateLecturerUser,
   validateStudentUsers,
 } = require('../services/classScopeService');
+const { auditSuccess, auditDenied, auditFailed, diffSelectedFields } = require('../services/auditLogService');
 
 function buildClassQuery(req) {
   const { search, semester, status } = req.query;
@@ -36,6 +37,15 @@ function buildClassQuery(req) {
   }
 
   return query;
+}
+
+function buildClassTarget(classDoc) {
+  return {
+    type: 'class',
+    id: classDoc?._id || null,
+    label: classDoc?.code || classDoc?.name || '',
+    secondaryId: classDoc?.name || '',
+  };
 }
 
 async function getScopedClassOr404(req, res) {
@@ -146,11 +156,32 @@ exports.createClass = async (req, res) => {
       .populate('lecturer', 'name email role isActive')
       .populate('students', 'name email role isActive studentId department');
 
+    await auditSuccess(req, {
+      event: 'class.created',
+      module: 'class',
+      action: 'create',
+      target: buildClassTarget(populated),
+      summary: `${req.user.email} đã tạo lớp ${populated.code || populated.name}`,
+      changes: {
+        lecturer: populated.lecturer?._id || populated.lecturer,
+        isActive: populated.isActive,
+        semester: populated.semester,
+      },
+    });
+
     res.status(201).json({
       success: true,
       data: populated,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'class.created',
+      module: 'class',
+      action: 'create',
+      target: { type: 'class', label: req.body?.code || req.body?.name || '' },
+      summary: 'Tạo lớp thất bại',
+      error,
+    });
     res.status(error.status || 400).json({
       success: false,
       message: error.message || 'Tạo lớp thất bại',
@@ -165,8 +196,17 @@ exports.updateClass = async (req, res) => {
     if (!classDoc) {
       return;
     }
+    const before = classDoc.toObject();
 
     if (req.user.role === 'lecturer' && req.body.lecturer && String(req.body.lecturer) !== String(classDoc.lecturer._id)) {
+      await auditDenied(req, {
+        event: 'class.updated',
+        module: 'class',
+        action: 'update',
+        target: buildClassTarget(classDoc),
+        summary: `Từ chối đổi giảng viên phụ trách của lớp ${classDoc.code || classDoc.name}`,
+        reason: 'LECTURER_CANNOT_REASSIGN_CLASS_OWNER',
+      });
       return res.status(403).json({ message: 'Giảng viên không được đổi giảng viên phụ trách của lớp' });
     }
 
@@ -185,11 +225,34 @@ exports.updateClass = async (req, res) => {
     await classDoc.populate('lecturer', 'name email role isActive');
     await classDoc.populate('students', 'name email role isActive studentId department');
 
+    const classChanges = diffSelectedFields(before, classDoc.toObject(), ['name', 'code', 'semester', 'description', 'isActive', 'lecturer']);
+    const changeParts = [];
+    if (classChanges.lecturer) changeParts.push('đổi giảng viên phụ trách');
+    if (classChanges.isActive) changeParts.push(`chuyển trạng thái ${classChanges.isActive.to ? 'hoạt động' : 'vô hiệu hóa'}`);
+    const changeSuffix = changeParts.length > 0 ? ` (${changeParts.join(', ')})` : '';
+
+    await auditSuccess(req, {
+      event: 'class.updated',
+      module: 'class',
+      action: 'update',
+      target: buildClassTarget(classDoc),
+      summary: `${req.user.email} đã cập nhật lớp ${classDoc.code || classDoc.name}${changeSuffix}`,
+      changes: classChanges,
+    });
+
     res.json({
       success: true,
       data: classDoc,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'class.updated',
+      module: 'class',
+      action: 'update',
+      target: { type: 'class', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật lớp thất bại',
+      error,
+    });
     res.status(error.status || 400).json({
       success: false,
       message: error.message || 'Cập nhật lớp thất bại',
@@ -206,20 +269,52 @@ exports.deleteClass = async (req, res) => {
     }
 
     if (req.user.role !== 'admin') {
+      await auditDenied(req, {
+        event: 'class.deleted',
+        module: 'class',
+        action: 'delete',
+        target: buildClassTarget(classDoc),
+        summary: `Từ chối xóa lớp ${classDoc.code || classDoc.name}`,
+        reason: 'FORBIDDEN',
+      });
       return res.status(403).json({ message: 'Bạn không có quyền xóa lớp' });
     }
 
     if (Array.isArray(classDoc.students) && classDoc.students.length > 0) {
+      await auditDenied(req, {
+        event: 'class.deleted',
+        module: 'class',
+        action: 'delete',
+        target: buildClassTarget(classDoc),
+        summary: `Từ chối xóa lớp ${classDoc.code || classDoc.name} vì còn sinh viên`,
+        reason: 'CLASS_HAS_STUDENTS',
+      });
       return res.status(400).json({ message: 'Không thể xóa lớp còn sinh viên. Vui lòng xóa sinh viên khỏi lớp trước.' });
     }
 
     await classDoc.deleteOne();
+
+    await auditSuccess(req, {
+      event: 'class.deleted',
+      module: 'class',
+      action: 'delete',
+      target: buildClassTarget(classDoc),
+      summary: `${req.user.email} đã xóa lớp ${classDoc.code || classDoc.name}`,
+    });
 
     res.json({
       success: true,
       message: 'Xóa lớp thành công',
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'class.deleted',
+      module: 'class',
+      action: 'delete',
+      target: { type: 'class', id: req.params.id, label: req.params.id },
+      summary: 'Xóa lớp thất bại',
+      error,
+    });
     res.status(400).json({
       success: false,
       message: error.message || 'Xóa lớp thất bại',
@@ -256,11 +351,31 @@ exports.addStudents = async (req, res) => {
     await classDoc.populate('lecturer', 'name email role isActive');
     await classDoc.populate('students', 'name email role isActive studentId department');
 
+    await auditSuccess(req, {
+      event: 'class.student_added',
+      module: 'class',
+      action: 'add_student',
+      target: buildClassTarget(classDoc),
+      summary: `${req.user.email} đã thêm ${uniqueIds.length} sinh viên vào lớp ${classDoc.code || classDoc.name}`,
+      changes: {
+        addedStudentIds: uniqueIds,
+        addedCount: uniqueIds.length,
+      },
+    });
+
     res.json({
       success: true,
       data: classDoc,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'class.student_added',
+      module: 'class',
+      action: 'add_student',
+      target: { type: 'class', id: req.params.id, label: req.params.id },
+      summary: 'Thêm sinh viên vào lớp thất bại',
+      error,
+    });
     res.status(error.status || 400).json({
       success: false,
       message: error.message || 'Thêm sinh viên vào lớp thất bại',
@@ -287,11 +402,30 @@ exports.removeStudent = async (req, res) => {
     await classDoc.populate('lecturer', 'name email role isActive');
     await classDoc.populate('students', 'name email role isActive studentId department');
 
+    await auditSuccess(req, {
+      event: 'class.student_removed',
+      module: 'class',
+      action: 'remove_student',
+      target: buildClassTarget(classDoc),
+      summary: `${req.user.email} đã xóa một sinh viên khỏi lớp ${classDoc.code || classDoc.name}`,
+      changes: {
+        removedStudentId: req.params.userId,
+      },
+    });
+
     res.json({
       success: true,
       data: classDoc,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'class.student_removed',
+      module: 'class',
+      action: 'remove_student',
+      target: { type: 'class', id: req.params.id, label: req.params.id },
+      summary: 'Xóa sinh viên khỏi lớp thất bại',
+      error,
+    });
     res.status(400).json({
       success: false,
       message: error.message || 'Xóa sinh viên khỏi lớp thất bại',

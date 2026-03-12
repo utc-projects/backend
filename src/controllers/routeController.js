@@ -1,5 +1,6 @@
 const TourismRoute = require('../models/TourismRoute');
 const TourismPoint = require('../models/TourismPoint');
+const { auditSuccess, auditFailed } = require('../services/auditLogService');
 
 // OSRM public demo server (for development)
 // In production, you should use your own OSRM server
@@ -183,8 +184,26 @@ exports.createRoute = async (req, res) => {
     
     // Populate points before returning
     await route.populate('points', 'name location category');
+    await auditSuccess(req, {
+      event: 'route.created',
+      module: 'route',
+      action: 'create',
+      target: { type: 'route', id: route._id, label: route.routeName },
+      summary: `${req.user.email} đã tạo tuyến ${route.routeName}`,
+      changes: {
+        pointsCount: route.points?.length || 0,
+      },
+    });
     res.status(201).json(route);
   } catch (error) {
+    await auditFailed(req, {
+      event: 'route.created',
+      module: 'route',
+      action: 'create',
+      target: { type: 'route', label: req.body?.routeName || '' },
+      summary: 'Tạo tuyến du lịch thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -203,9 +222,27 @@ exports.updateRoute = async (req, res) => {
     Object.assign(route, req.body);
     await route.save();
     await route.populate('points', 'name location category');
+    await auditSuccess(req, {
+      event: 'route.updated',
+      module: 'route',
+      action: 'update',
+      target: { type: 'route', id: route._id, label: route.routeName },
+      summary: `${req.user.email} đã cập nhật tuyến ${route.routeName}`,
+      changes: {
+        pointsCount: route.points?.length || 0,
+      },
+    });
     
     res.json(route);
   } catch (error) {
+    await auditFailed(req, {
+      event: 'route.updated',
+      module: 'route',
+      action: 'update',
+      target: { type: 'route', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật tuyến du lịch thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -219,8 +256,23 @@ exports.deleteRoute = async (req, res) => {
     if (!route) {
       return res.status(404).json({ message: 'Không tìm thấy tuyến du lịch' });
     }
+    await auditSuccess(req, {
+      event: 'route.deleted',
+      module: 'route',
+      action: 'delete',
+      target: { type: 'route', id: route._id, label: route.routeName },
+      summary: `${req.user.email} đã xóa tuyến ${route.routeName}`,
+    });
     res.json({ message: 'Đã xóa tuyến du lịch thành công' });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'route.deleted',
+      module: 'route',
+      action: 'delete',
+      target: { type: 'route', id: req.params.id, label: req.params.id },
+      summary: 'Xóa tuyến du lịch thất bại',
+      error,
+    });
     res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const logger = require('./utils/logger');
+const requestAuditContext = require('./middlewares/requestAuditContext');
 
 const app = express();
 
@@ -10,6 +11,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+app.use(requestAuditContext);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
@@ -33,6 +35,7 @@ const {
   permissionRoutes,
   changeRequestRoutes,
   classRoutes,
+  auditLogRoutes,
 } = require('./routes');
 
 app.use('/api/points', pointRoutes);
@@ -45,6 +48,7 @@ app.use('/api/classes', classRoutes);
 app.use('/api/notifications', require('./routes').notificationRoutes);
 app.use('/api/estimates', require('./routes').estimateRoutes);
 app.use('/api/estimate-formulas', require('./routes').estimateFormulaRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 
 
 // Error handling middleware

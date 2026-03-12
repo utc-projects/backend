@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { auditDenied, auditFailed } = require('../services/auditLogService');
 
 // Protect routes - verify JWT token
 exports.protect = async (req, res, next) => {
@@ -11,6 +12,14 @@ exports.protect = async (req, res, next) => {
   }
 
   if (!token) {
+    await auditDenied(req, {
+      event: 'auth.access_denied',
+      module: 'security',
+      action: 'authenticate',
+      reason: 'NO_TOKEN',
+      target: { type: 'auth_session', label: 'anonymous' },
+      summary: 'Từ chối truy cập vì không có token',
+    });
     return res.status(401).json({ 
       message: 'Bạn cần đăng nhập để truy cập',
       code: 'NO_TOKEN'
@@ -25,6 +34,14 @@ exports.protect = async (req, res, next) => {
     req.user = await User.findById(decoded.id).select('-password');
 
     if (!req.user) {
+      await auditDenied(req, {
+        event: 'auth.access_denied',
+        module: 'security',
+        action: 'authenticate',
+        reason: 'USER_NOT_FOUND',
+        target: { type: 'auth_session', label: decoded.id },
+        summary: 'Từ chối truy cập vì người dùng không tồn tại',
+      });
       return res.status(401).json({ 
         message: 'Người dùng không tồn tại',
         code: 'USER_NOT_FOUND'
@@ -32,6 +49,14 @@ exports.protect = async (req, res, next) => {
     }
 
     if (!req.user.isActive) {
+      await auditDenied(req, {
+        event: 'auth.access_denied',
+        module: 'security',
+        action: 'authenticate',
+        reason: 'USER_INACTIVE',
+        target: { type: 'user', id: req.user._id, label: req.user.email },
+        summary: `Từ chối truy cập vì tài khoản ${req.user.email} đã bị vô hiệu hóa`,
+      });
       return res.status(401).json({ 
         message: 'Tài khoản đã bị vô hiệu hóa',
         code: 'USER_INACTIVE'
@@ -40,6 +65,15 @@ exports.protect = async (req, res, next) => {
 
     next();
   } catch (error) {
+    await auditDenied(req, {
+      event: 'auth.access_denied',
+      module: 'security',
+      action: 'authenticate',
+      reason: 'INVALID_TOKEN',
+      target: { type: 'auth_session', label: 'invalid_token' },
+      summary: 'Từ chối truy cập vì token không hợp lệ hoặc đã hết hạn',
+      error,
+    });
     return res.status(401).json({ 
       message: 'Token không hợp lệ hoặc đã hết hạn',
       code: 'INVALID_TOKEN'
@@ -58,6 +92,14 @@ exports.authorize = (resource, action) => {
     // If we only passed 'admin' as argument (legacy support for admin-only routes), 
     // the check above handles it. If user is not admin and we required 'admin', reject.
     if (resource === 'admin' && !action) {
+       await auditDenied(req, {
+          event: 'permission.denied',
+          module: 'security',
+          action: 'authorize',
+          reason: 'FORBIDDEN_ADMIN_ONLY',
+          target: { type: 'permission_requirement', label: 'admin' },
+          summary: `Người dùng ${req.user.email} không có quyền admin`,
+       });
        return res.status(403).json({
           message: 'Hành động yêu cầu quyền Admin',
           code: 'FORBIDDEN_ADMIN_ONLY'
@@ -69,6 +111,14 @@ exports.authorize = (resource, action) => {
       const permission = await Permission.findOne({ role: req.user.role });
       
       if (!permission) {
+        await auditDenied(req, {
+          event: 'permission.denied',
+          module: 'security',
+          action: 'authorize',
+          reason: 'PERMISSION_CONFIG_NOT_FOUND',
+          target: { type: 'permission_requirement', label: `${resource}.${action}` },
+          summary: `Không tìm thấy cấu hình quyền cho vai trò ${req.user.role}`,
+        });
         return res.status(403).json({ 
           message: 'Không tìm thấy cấu hình phân quyền cho vai trò này',
           code: 'PERMISSION_CONFIG_NOT_FOUND'
@@ -85,6 +135,15 @@ exports.authorize = (resource, action) => {
         return next();
       }
 
+      await auditDenied(req, {
+        event: 'permission.denied',
+        module: 'security',
+        action: 'authorize',
+        reason: 'FORBIDDEN',
+        target: { type: 'permission_requirement', label: `${resource}.${action}` },
+        summary: `Người dùng ${req.user.email} không có quyền ${resource}.${action}`,
+        metadata: { required: `${resource}.${action}` },
+      });
       return res.status(403).json({ 
         message: `Bạn không có quyền '${action}' cho '${resource}'`,
         code: 'FORBIDDEN',
@@ -93,6 +152,14 @@ exports.authorize = (resource, action) => {
       
     } catch (error) {
       console.error('Permission check error:', error);
+      await auditFailed(req, {
+        event: 'permission.check_failed',
+        module: 'security',
+        action: 'authorize',
+        target: { type: 'permission_requirement', label: `${resource}.${action || ''}` },
+        summary: `Lỗi hệ thống khi kiểm tra quyền ${resource}.${action || ''}`,
+        error,
+      });
       return res.status(500).json({ 
         message: 'Lỗi hệ thống khi kiểm tra quyền',
         code: 'INTERNAL_ERROR'

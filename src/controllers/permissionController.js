@@ -1,4 +1,5 @@
 const Permission = require('../models/Permission');
+const { auditSuccess, auditFailed, diffSelectedFields } = require('../services/auditLogService');
 
 // Default permissions configuration
 const DEFAULT_PERMISSIONS = {
@@ -83,11 +84,25 @@ exports.updatePermission = async (req, res) => {
       });
     }
 
+    const existingPermission = await Permission.findOne({ role });
     const permission = await Permission.findOneAndUpdate(
       { role },
       { resources: mergeResourceDefaults(resources, DEFAULT_PERMISSIONS[role]), updatedAt: Date.now() },
       { new: true, upsert: true } // Create if not exists
     );
+
+    await auditSuccess(req, {
+      event: 'permission.updated',
+      module: 'permission',
+      action: 'update',
+      target: { type: 'permission', label: role, secondaryId: role },
+      summary: `${req.user.email} đã cập nhật quyền cho vai trò ${role}`,
+      changes: diffSelectedFields(
+        existingPermission?.toObject?.() || existingPermission || {},
+        permission.toObject(),
+        ['resources']
+      ),
+    });
 
     res.json({
       success: true,
@@ -95,6 +110,14 @@ exports.updatePermission = async (req, res) => {
       data: permission
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'permission.updated',
+      module: 'permission',
+      action: 'update',
+      target: { type: 'permission', label: req.params.role || '' },
+      summary: 'Cập nhật quyền thất bại',
+      error,
+    });
     res.status(400).json({
       success: false,
       message: 'Cập nhật quyền thất bại',

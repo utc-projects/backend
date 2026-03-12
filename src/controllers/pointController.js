@@ -1,4 +1,5 @@
 const TourismPoint = require('../models/TourismPoint');
+const { auditSuccess, auditFailed } = require('../services/auditLogService');
 
 // Convert points to GeoJSON FeatureCollection
 const toGeoJSON = (points) => ({
@@ -201,8 +202,28 @@ exports.createPoint = async (req, res) => {
 
     const point = new TourismPoint(pointData);
     await point.save();
+    await auditSuccess(req, {
+      event: 'point.created',
+      module: 'point',
+      action: 'create',
+      target: { type: 'point', id: point._id, label: point.name },
+      summary: `${req.user.email} đã tạo điểm du lịch ${point.name}`,
+      changes: {
+        category: point.category,
+        imageCount: point.images?.length || 0,
+        videoCount: point.videos?.length || 0,
+      },
+    });
     res.status(201).json(point);
   } catch (error) {
+    await auditFailed(req, {
+      event: 'point.created',
+      module: 'point',
+      action: 'create',
+      target: { type: 'point', label: req.body?.name || '' },
+      summary: 'Tạo điểm du lịch thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -274,9 +295,28 @@ exports.updatePoint = async (req, res) => {
 
     Object.assign(point, updates);
     await point.save();
+    await auditSuccess(req, {
+      event: 'point.updated',
+      module: 'point',
+      action: 'update',
+      target: { type: 'point', id: point._id, label: point.name },
+      summary: `${req.user.email} đã cập nhật điểm du lịch ${point.name}`,
+      changes: {
+        imageCount: point.images?.length || 0,
+        videoCount: point.videos?.length || 0,
+      },
+    });
     
     res.json(point);
   } catch (error) {
+    await auditFailed(req, {
+      event: 'point.updated',
+      module: 'point',
+      action: 'update',
+      target: { type: 'point', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật điểm du lịch thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -328,10 +368,24 @@ exports.deletePoint = async (req, res) => {
     }
 
     await TourismPoint.findByIdAndDelete(pointId);
+    await auditSuccess(req, {
+      event: 'point.deleted',
+      module: 'point',
+      action: 'delete',
+      target: { type: 'point', id: point._id, label: point.name },
+      summary: `${req.user.email} đã xóa điểm du lịch ${point.name}`,
+    });
     
     res.json({ message: 'Đã xóa điểm du lịch và các tệp đính kèm thành công' });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'point.deleted',
+      module: 'point',
+      action: 'delete',
+      target: { type: 'point', id: req.params.id, label: req.params.id },
+      summary: 'Xóa điểm du lịch thất bại',
+      error,
+    });
     res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
-

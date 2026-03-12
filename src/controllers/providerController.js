@@ -1,4 +1,5 @@
 const ServiceProvider = require('../models/ServiceProvider');
+const { auditSuccess, auditFailed } = require('../services/auditLogService');
 
 // Convert providers to GeoJSON FeatureCollection
 const toGeoJSON = (providers) => ({
@@ -318,8 +319,28 @@ exports.createProvider = async (req, res) => {
 
     const provider = new ServiceProvider(providerData);
     await provider.save();
+    await auditSuccess(req, {
+      event: 'provider.created',
+      module: 'provider',
+      action: 'create',
+      target: { type: 'provider', id: provider._id, label: provider.name },
+      summary: `${req.user.email} đã tạo nhà cung cấp ${provider.name}`,
+      changes: {
+        serviceType: provider.serviceType,
+        imageCount: provider.images?.length || 0,
+        videoCount: provider.videos?.length || 0,
+      },
+    });
     res.status(201).json(provider);
   } catch (error) {
+    await auditFailed(req, {
+      event: 'provider.created',
+      module: 'provider',
+      action: 'create',
+      target: { type: 'provider', label: req.body?.name || '' },
+      summary: 'Tạo nhà cung cấp thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -400,9 +421,29 @@ exports.updateProvider = async (req, res) => {
       updates,
       { new: true, runValidators: true }
     );
+    await auditSuccess(req, {
+      event: 'provider.updated',
+      module: 'provider',
+      action: 'update',
+      target: { type: 'provider', id: updatedProvider._id, label: updatedProvider.name },
+      summary: `${req.user.email} đã cập nhật nhà cung cấp ${updatedProvider.name}`,
+      changes: {
+        serviceType: updatedProvider.serviceType,
+        imageCount: updatedProvider.images?.length || 0,
+        videoCount: updatedProvider.videos?.length || 0,
+      },
+    });
     
     res.json(updatedProvider);
   } catch (error) {
+    await auditFailed(req, {
+      event: 'provider.updated',
+      module: 'provider',
+      action: 'update',
+      target: { type: 'provider', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật nhà cung cấp thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Dữ liệu không hợp lệ', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -440,8 +481,23 @@ exports.deleteProvider = async (req, res) => {
     }
 
     await ServiceProvider.findByIdAndDelete(req.params.id);
+    await auditSuccess(req, {
+      event: 'provider.deleted',
+      module: 'provider',
+      action: 'delete',
+      target: { type: 'provider', id: provider._id, label: provider.name },
+      summary: `${req.user.email} đã xóa nhà cung cấp ${provider.name}`,
+    });
     res.json({ message: 'Đã xóa nhà cung cấp và các tệp đính kèm thành công' });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'provider.deleted',
+      module: 'provider',
+      action: 'delete',
+      target: { type: 'provider', id: req.params.id, label: req.params.id },
+      summary: 'Xóa nhà cung cấp thất bại',
+      error,
+    });
     res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };

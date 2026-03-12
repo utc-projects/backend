@@ -2,6 +2,7 @@ const ChangeRequest = require('../models/ChangeRequest');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { resolveReviewerForStudent } = require('../services/classScopeService');
+const { auditSuccess, auditFailed } = require('../services/auditLogService');
 
 const getModelByType = (type) => {
   switch (type) {
@@ -79,6 +80,27 @@ exports.interceptRequest = (type) => {
         status: 'pending'
       });
 
+      await auditSuccess(req, {
+        event: 'approval.request_created',
+        module: 'approval',
+        action,
+        target: {
+          type: 'change_request',
+          id: changeRequest._id,
+          label: `${type}:${action}`,
+          secondaryId: targetId || '',
+        },
+        summary: `${req.user.email} đã gửi yêu cầu ${action} ${type} chờ phê duyệt`,
+        changes: {
+          requestType: type,
+          requestAction: action,
+          targetId,
+          assignedReviewer: reviewerId,
+          requesterClass: requesterClassId,
+          routingMode: reviewRouting.routingMode,
+        },
+      });
+
       // 5. Return "Pending Approval" response
       try {
         const io = req.app.get('io');
@@ -122,6 +144,14 @@ exports.interceptRequest = (type) => {
 
     } catch (error) {
       console.error('Approval Intercept Error:', error);
+      await auditFailed(req, {
+        event: 'approval.request_create_failed',
+        module: 'approval',
+        action: 'create',
+        target: { type: 'change_request', label: type },
+        summary: `Tạo yêu cầu phê duyệt cho ${type} thất bại`,
+        error,
+      });
       return res.status(500).json({ message: 'Lỗi khi tạo yêu cầu phê duyệt' });
     }
   };

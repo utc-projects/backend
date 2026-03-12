@@ -19,4 +19,5 @@ module.exports = {
   estimateRoutes: require('./estimateRoutes'),
   estimateFormulaRoutes: require('./estimateFormulaRoutes'),
   notificationRoutes: require('./notificationRoutes'),
+  auditLogRoutes: require('./auditLogRoutes'),
 };

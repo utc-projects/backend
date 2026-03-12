@@ -4,6 +4,7 @@ const TourismRoute = require('../models/TourismRoute');
 const ServiceProvider = require('../models/ServiceProvider');
 const Notification = require('../models/Notification'); // Import Notification model
 const { canLecturerReviewRequest } = require('../services/classScopeService');
+const { auditSuccess, auditDenied, auditFailed } = require('../services/auditLogService');
 
 // Helper to get model by type
 const getModelByType = (type) => {
@@ -128,10 +129,26 @@ exports.approveRequest = async (req, res) => {
     }
 
     if (req.user.role === 'lecturer' && !canLecturerReviewRequest(req.user._id, request)) {
+      await auditDenied(req, {
+        event: 'approval.approved',
+        module: 'approval',
+        action: 'approve',
+        target: { type: 'change_request', id: request._id, label: request.type },
+        summary: `Từ chối phê duyệt yêu cầu ${request._id} ngoài phạm vi lớp`,
+        reason: 'OUT_OF_SCOPE',
+      });
       return res.status(403).json({ message: 'Bạn không có quyền duyệt yêu cầu này' });
     }
 
     if (request.status !== 'pending') {
+      await auditDenied(req, {
+        event: 'approval.approved',
+        module: 'approval',
+        action: 'approve',
+        target: { type: 'change_request', id: request._id, label: request.type },
+        summary: `Từ chối phê duyệt yêu cầu ${request._id} vì đã được xử lý`,
+        reason: 'NOT_PENDING',
+      });
       return res.status(400).json({ message: 'Yêu cầu này đã được xử lý' });
     }
 
@@ -185,6 +202,20 @@ exports.approveRequest = async (req, res) => {
     request.reviewNote = req.body.note || '';
     await request.save();
 
+    await auditSuccess(req, {
+      event: 'approval.approved',
+      module: 'approval',
+      action: 'approve',
+      target: { type: 'change_request', id: request._id, label: `${request.type}:${request.action}` },
+      summary: `${req.user.email} đã phê duyệt yêu cầu ${request._id}`,
+      changes: {
+        requestType: request.type,
+        requestAction: request.action,
+        affectedTargetId: request.targetId,
+        reviewer: req.user._id,
+      },
+    });
+
     // Notify Student
     try {
       const io = req.app.get('io');
@@ -204,6 +235,14 @@ exports.approveRequest = async (req, res) => {
     res.json({ message: 'Đã phê duyệt yêu cầu thành công', request });
   } catch (error) {
     console.error('Approve Error:', error);
+    await auditFailed(req, {
+      event: 'approval.approved',
+      module: 'approval',
+      action: 'approve',
+      target: { type: 'change_request', id: req.params.id, label: req.params.id },
+      summary: 'Phê duyệt yêu cầu thất bại',
+      error,
+    });
     res.status(500).json({ message: 'Lỗi khi phê duyệt yêu cầu' });
   }
 };
@@ -217,10 +256,26 @@ exports.rejectRequest = async (req, res) => {
     }
 
     if (req.user.role === 'lecturer' && !canLecturerReviewRequest(req.user._id, request)) {
+      await auditDenied(req, {
+        event: 'approval.rejected',
+        module: 'approval',
+        action: 'reject',
+        target: { type: 'change_request', id: request._id, label: request.type },
+        summary: `Từ chối thao tác từ chối yêu cầu ${request._id} ngoài phạm vi lớp`,
+        reason: 'OUT_OF_SCOPE',
+      });
       return res.status(403).json({ message: 'Bạn không có quyền từ chối yêu cầu này' });
     }
 
     if (request.status !== 'pending') {
+      await auditDenied(req, {
+        event: 'approval.rejected',
+        module: 'approval',
+        action: 'reject',
+        target: { type: 'change_request', id: request._id, label: request.type },
+        summary: `Từ chối thao tác từ chối yêu cầu ${request._id} vì đã được xử lý`,
+        reason: 'NOT_PENDING',
+      });
       return res.status(400).json({ message: 'Yêu cầu này đã được xử lý' });
     }
 
@@ -229,6 +284,19 @@ exports.rejectRequest = async (req, res) => {
     request.reviewer = req.user._id;
     request.reviewNote = req.body.note || '';
     await request.save();
+
+    await auditSuccess(req, {
+      event: 'approval.rejected',
+      module: 'approval',
+      action: 'reject',
+      target: { type: 'change_request', id: request._id, label: `${request.type}:${request.action}` },
+      summary: `${req.user.email} đã từ chối yêu cầu ${request._id}`,
+      changes: {
+        requestType: request.type,
+        requestAction: request.action,
+        reviewer: req.user._id,
+      },
+    });
 
     // Notify Student
     try {
@@ -248,6 +316,14 @@ exports.rejectRequest = async (req, res) => {
 
     res.json({ message: 'Đã từ chối yêu cầu', request });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'approval.rejected',
+      module: 'approval',
+      action: 'reject',
+      target: { type: 'change_request', id: req.params.id, label: req.params.id },
+      summary: 'Từ chối yêu cầu thất bại',
+      error,
+    });
     res.status(500).json({ message: 'Lỗi khi từ chối yêu cầu' });
   }
 };

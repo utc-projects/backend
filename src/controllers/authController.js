@@ -8,9 +8,19 @@ const {
   ensureLecturerCanBeModified,
   ensureStudentCanBeModified,
 } = require('../services/classScopeService');
+const { auditSuccess, auditDenied, auditFailed, diffSelectedFields } = require('../services/auditLogService');
 
 function generateRandomPassword() {
   return crypto.randomBytes(9).toString('base64url');
+}
+
+function buildUserTarget(user) {
+  return {
+    type: 'user',
+    id: user?._id || null,
+    label: user?.email || user?.name || '',
+    secondaryId: user?.studentId || '',
+  };
 }
 
 function assertStudentResetAllowed(user) {
@@ -130,9 +140,19 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
 
     // Validate input
     if (!email || !password) {
+      await auditDenied(req, {
+        event: 'auth.login_failed',
+        module: 'auth',
+        action: 'login',
+        actor: { email: normalizedEmail || 'anonymous', role: 'anonymous' },
+        target: { type: 'auth_session', label: normalizedEmail || 'anonymous' },
+        summary: `Đăng nhập thất bại cho ${normalizedEmail || 'anonymous'} do thiếu thông tin`,
+        reason: 'MISSING_CREDENTIALS',
+      });
       return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu' });
     }
 
@@ -140,6 +160,15 @@ exports.login = async (req, res) => {
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
+      await auditDenied(req, {
+        event: 'auth.login_failed',
+        module: 'auth',
+        action: 'login',
+        actor: { email: normalizedEmail, role: 'anonymous' },
+        target: { type: 'auth_session', label: normalizedEmail },
+        summary: `Đăng nhập thất bại cho ${normalizedEmail}: không tìm thấy tài khoản`,
+        reason: 'USER_NOT_FOUND',
+      });
       return res.status(401).json({ message: 'Email hoặc mật khẩu không đúng' });
     }
 
@@ -147,15 +176,42 @@ exports.login = async (req, res) => {
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
+      await auditDenied(req, {
+        event: 'auth.login_failed',
+        module: 'auth',
+        action: 'login',
+        actor: { id: user._id, email: user.email, role: user.role, name: user.name },
+        target: { type: 'auth_session', label: user.email },
+        summary: `Đăng nhập thất bại cho ${user.email}: sai mật khẩu`,
+        reason: 'WRONG_PASSWORD',
+      });
       return res.status(401).json({ message: 'Email hoặc mật khẩu không đúng' });
     }
 
     if (!user.isActive) {
+      await auditDenied(req, {
+        event: 'auth.login_failed',
+        module: 'auth',
+        action: 'login',
+        actor: { id: user._id, email: user.email, role: user.role, name: user.name },
+        target: buildUserTarget(user),
+        summary: `Đăng nhập thất bại cho ${user.email}: tài khoản bị vô hiệu hóa`,
+        reason: 'USER_INACTIVE',
+      });
       return res.status(401).json({ message: 'Tài khoản đã bị vô hiệu hóa' });
     }
 
     // Generate token
     const token = user.getSignedJwtToken();
+
+    await auditSuccess(req, {
+      event: 'auth.login',
+      module: 'auth',
+      action: 'login',
+      actor: { id: user._id, email: user.email, role: user.role, name: user.name },
+      target: buildUserTarget(user),
+      summary: `${user.email} đăng nhập thành công`,
+    });
 
     res.json({
       success: true,
@@ -172,6 +228,14 @@ exports.login = async (req, res) => {
       },
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'auth.login_failed',
+      module: 'auth',
+      action: 'login',
+      target: { type: 'auth_session', label: String(req.body?.email || '').trim().toLowerCase() || 'anonymous' },
+      summary: 'Đăng nhập thất bại do lỗi hệ thống',
+      error,
+    });
     res.status(500).json({ message: 'Đăng nhập thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -224,6 +288,14 @@ exports.updatePassword = async (req, res) => {
 
     // Check current password
     if (!(await user.matchPassword(currentPassword))) {
+      await auditDenied(req, {
+        event: 'user.password_changed',
+        module: 'user',
+        action: 'change_password',
+        target: buildUserTarget(user),
+        summary: `${user.email} đổi mật khẩu thất bại do mật khẩu hiện tại không đúng`,
+        reason: 'CURRENT_PASSWORD_INVALID',
+      });
       return res.status(401).json({ message: 'Mật khẩu hiện tại không đúng' });
     }
 
@@ -234,6 +306,14 @@ exports.updatePassword = async (req, res) => {
 
     // Generate new token
     const token = user.getSignedJwtToken();
+
+    await auditSuccess(req, {
+      event: 'user.password_changed',
+      module: 'user',
+      action: 'change_password',
+      target: buildUserTarget(user),
+      summary: `${user.email} đã đổi mật khẩu`,
+    });
 
     res.json({
       success: true,
@@ -251,6 +331,14 @@ exports.updatePassword = async (req, res) => {
       },
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.password_changed',
+      module: 'user',
+      action: 'change_password',
+      target: { type: 'user', id: req.user?._id, label: req.user?.email || '' },
+      summary: 'Đổi mật khẩu thất bại',
+      error,
+    });
     res.status(500).json({ message: 'Đổi mật khẩu thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -261,12 +349,22 @@ exports.updatePassword = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const { name, studentId, department, avatar } = req.body;
+    const beforeUser = await User.findById(req.user._id);
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { name, studentId, department, avatar },
       { new: true, runValidators: true }
     );
+
+    await auditSuccess(req, {
+      event: 'user.profile_updated',
+      module: 'user',
+      action: 'update_profile',
+      target: buildUserTarget(user),
+      summary: `${user.email} đã cập nhật thông tin cá nhân`,
+      changes: diffSelectedFields(beforeUser?.toObject?.() || beforeUser || {}, user.toObject(), ['name', 'studentId', 'department', 'avatar']),
+    });
 
     res.json({
       success: true,
@@ -282,6 +380,14 @@ exports.updateProfile = async (req, res) => {
       },
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.profile_updated',
+      module: 'user',
+      action: 'update_profile',
+      target: { type: 'user', id: req.user?._id, label: req.user?.email || '' },
+      summary: 'Cập nhật thông tin cá nhân thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -341,11 +447,28 @@ exports.updateUserRole = async (req, res) => {
 
     const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true });
 
+    await auditSuccess(req, {
+      event: 'user.role_changed',
+      module: 'user',
+      action: 'change_role',
+      target: buildUserTarget(user),
+      summary: `${req.user.email} đã đổi vai trò của ${user.email} thành ${role}`,
+      changes: { role: { from: existingUser.role, to: user.role } },
+    });
+
     res.json({
       success: true,
       user,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.role_changed',
+      module: 'user',
+      action: 'change_role',
+      target: { type: 'user', id: req.params.id, label: req.params.id },
+      summary: 'Đổi vai trò người dùng thất bại',
+      error,
+    });
     res.status(error.status || 400).json({ message: error.message || 'Cập nhật thất bại' });
   }
 };
@@ -368,11 +491,28 @@ exports.toggleUserActive = async (req, res) => {
     user.isActive = !user.isActive;
     await user.save();
 
+    await auditSuccess(req, {
+      event: 'user.status_toggled',
+      module: 'user',
+      action: 'toggle_active',
+      target: buildUserTarget(user),
+      summary: `${req.user.email} đã ${user.isActive ? 'kích hoạt' : 'vô hiệu hóa'} ${user.email}`,
+      changes: { isActive: { from: !user.isActive, to: user.isActive } },
+    });
+
     res.json({
       success: true,
       user,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.status_toggled',
+      module: 'user',
+      action: 'toggle_active',
+      target: { type: 'user', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật trạng thái người dùng thất bại',
+      error,
+    });
     res.status(error.status || 400).json({ message: error.message || 'Cập nhật thất bại' });
   }
 };
@@ -396,11 +536,27 @@ exports.resetUserPassword = async (req, res) => {
     user.mustChangePassword = true;
     await user.save();
 
+    await auditSuccess(req, {
+      event: 'user.password_reset',
+      module: 'user',
+      action: 'reset_password',
+      target: buildUserTarget(user),
+      summary: `${req.user.email} đã reset mật khẩu cho ${user.email}`,
+    });
+
     res.json({
       success: true,
       newPassword,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.password_reset',
+      module: 'user',
+      action: 'reset_password',
+      target: { type: 'user', id: req.params.id, label: req.params.id },
+      summary: 'Reset mật khẩu thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Reset mật khẩu thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -417,6 +573,14 @@ exports.resetStudentPassword = async (req, res) => {
     }
 
     if (user.role !== 'student') {
+      await auditDenied(req, {
+        event: 'user.password_reset',
+        module: 'user',
+        action: 'reset_password',
+        target: buildUserTarget(user),
+        summary: `Từ chối reset mật khẩu vì ${user.email} không phải sinh viên`,
+        reason: 'TARGET_NOT_STUDENT',
+      });
       return res.status(400).json({ message: 'Chỉ có thể reset mật khẩu cho tài khoản sinh viên' });
     }
 
@@ -425,6 +589,14 @@ exports.resetStudentPassword = async (req, res) => {
     if (req.user.role === 'lecturer') {
       const canManageStudent = await canLecturerManageStudent(req.user._id, user._id);
       if (!canManageStudent) {
+        await auditDenied(req, {
+          event: 'user.password_reset',
+          module: 'user',
+          action: 'reset_password',
+          target: buildUserTarget(user),
+          summary: `Từ chối reset mật khẩu vì ${req.user.email} ngoài phạm vi lớp của ${user.email}`,
+          reason: 'OUT_OF_CLASS_SCOPE',
+        });
         return res.status(403).json({ message: 'Bạn chỉ có thể reset mật khẩu cho sinh viên thuộc lớp mình phụ trách' });
       }
     }
@@ -435,11 +607,28 @@ exports.resetStudentPassword = async (req, res) => {
     user.mustChangePassword = true;
     await user.save();
 
+    await auditSuccess(req, {
+      event: 'user.password_reset',
+      module: 'user',
+      action: 'reset_password',
+      target: buildUserTarget(user),
+      summary: `${req.user.email} đã reset mật khẩu sinh viên ${user.email}`,
+      metadata: { scope: req.user.role === 'lecturer' ? 'class' : 'global' },
+    });
+
     res.json({
       success: true,
       newPassword,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.password_reset',
+      module: 'user',
+      action: 'reset_password',
+      target: { type: 'user', id: req.params.id, label: req.params.id },
+      summary: 'Reset mật khẩu sinh viên thất bại',
+      error,
+    });
     res.status(400).json({
       message: 'Reset mật khẩu sinh viên thất bại',
       ...(process.env.NODE_ENV === 'development' && { error: error.message }),
@@ -470,6 +659,20 @@ exports.createUser = async (req, res) => {
       department,
     });
 
+    await auditSuccess(req, {
+      event: 'user.created',
+      module: 'user',
+      action: 'create',
+      target: buildUserTarget(user),
+      summary: `${req.user.email} đã tạo user ${user.email}`,
+      changes: {
+        role: user.role,
+        department: user.department,
+        studentId: user.studentId || '',
+        isActive: user.isActive,
+      },
+    });
+
     res.status(201).json({
       success: true,
       user: {
@@ -484,6 +687,14 @@ exports.createUser = async (req, res) => {
       },
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.created',
+      module: 'user',
+      action: 'create',
+      target: { type: 'user', label: String(req.body?.email || '') },
+      summary: 'Tạo người dùng thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Tạo người dùng thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -528,11 +739,32 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy người dùng' });
     }
 
+    await auditSuccess(req, {
+      event: 'user.updated',
+      module: 'user',
+      action: 'update',
+      target: buildUserTarget(user),
+      summary: `${req.user.email} đã cập nhật user ${user.email}`,
+      changes: diffSelectedFields(
+        existingUser?.toObject?.() || existingUser || {},
+        user.toObject(),
+        ['name', 'email', 'role', 'department', 'studentId', 'isActive']
+      ),
+    });
+
     res.json({
       success: true,
       user,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.updated',
+      module: 'user',
+      action: 'update',
+      target: { type: 'user', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật người dùng thất bại',
+      error,
+    });
     res.status(error.status || 400).json({ message: error.message || 'Cập nhật thất bại' });
   }
 };
@@ -550,6 +782,14 @@ exports.deleteUser = async (req, res) => {
 
     // Prevent deleting yourself
     if (user._id.toString() === req.user._id.toString()) {
+      await auditDenied(req, {
+        event: 'user.deleted',
+        module: 'user',
+        action: 'delete',
+        target: buildUserTarget(user),
+        summary: 'Từ chối xóa tài khoản của chính mình',
+        reason: 'SELF_DELETE_BLOCKED',
+      });
       return res.status(400).json({ message: 'Không thể xóa tài khoản của chính mình' });
     }
 
@@ -557,11 +797,27 @@ exports.deleteUser = async (req, res) => {
 
     await User.findByIdAndDelete(req.params.id);
 
+    await auditSuccess(req, {
+      event: 'user.deleted',
+      module: 'user',
+      action: 'delete',
+      target: buildUserTarget(user),
+      summary: `${req.user.email} đã xóa user ${user.email}`,
+    });
+
     res.json({
       success: true,
       message: 'Đã xóa người dùng thành công',
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.deleted',
+      module: 'user',
+      action: 'delete',
+      target: { type: 'user', id: req.params.id, label: req.params.id },
+      summary: 'Xóa người dùng thất bại',
+      error,
+    });
     res.status(error.status || 400).json({ message: error.message || 'Xóa thất bại' });
   }
 };
@@ -609,6 +865,20 @@ exports.importStudentsCommit = async (req, res) => {
 
     const { created, commitErrors } = await commitImport(validation.validRows);
 
+    await auditSuccess(req, {
+      event: 'user.imported',
+      module: 'user',
+      action: 'import',
+      target: { type: 'user_import', label: 'students_excel_import' },
+      summary: `${req.user.email} đã import ${created.length} sinh viên`,
+      changes: {
+        createdCount: created.length,
+        commitErrorCount: commitErrors.length,
+        skippedErrorCount: validation.errors.length,
+        createdUserIds: created.slice(0, 20).map((item) => item._id),
+      },
+    });
+
     res.json({
       success: true,
       createdCount: created.length,
@@ -617,6 +887,14 @@ exports.importStudentsCommit = async (req, res) => {
       skippedErrors: validation.errors,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'user.imported',
+      module: 'user',
+      action: 'import',
+      target: { type: 'user_import', label: 'students_excel_import' },
+      summary: 'Import sinh viên thất bại',
+      error,
+    });
     const status = error.status || 400;
     res.status(status).json({ message: error.message || 'Lỗi import', ...(process.env.NODE_ENV === 'development' && !error.status && { error: error.message }) });
   }

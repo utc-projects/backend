@@ -1,4 +1,5 @@
 const Note = require('../models/Note');
+const { auditSuccess, auditDenied, auditFailed } = require('../services/auditLogService');
 
 // @desc    Get my notes
 // @route   GET /api/notes/my
@@ -62,11 +63,31 @@ exports.createNote = async (req, res) => {
     const note = await Note.create(noteData);
     await note.populate('linkedPoint', 'name category');
 
+    await auditSuccess(req, {
+      event: 'note.created',
+      module: 'note',
+      action: 'create',
+      target: { type: 'note', id: note._id, label: note.title || note.linkedPoint?.name || 'note' },
+      summary: `${req.user.email} đã tạo ghi chú`,
+      changes: {
+        linkedPoint: note.linkedPoint?._id || note.linkedPoint,
+        isPublic: note.isPublic,
+      },
+    });
+
     res.status(201).json({
       success: true,
       note,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'note.created',
+      module: 'note',
+      action: 'create',
+      target: { type: 'note', label: req.body?.title || 'note' },
+      summary: 'Tạo ghi chú thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Tạo ghi chú thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -84,6 +105,14 @@ exports.updateNote = async (req, res) => {
 
     // Only owner can update
     if (note.user.toString() !== req.user._id.toString()) {
+      await auditDenied(req, {
+        event: 'note.updated',
+        module: 'note',
+        action: 'update',
+        target: { type: 'note', id: note._id, label: note.title || 'note' },
+        summary: `Từ chối cập nhật ghi chú ${note._id}`,
+        reason: 'NOT_OWNER',
+      });
       return res.status(403).json({ message: 'Bạn không có quyền chỉnh sửa ghi chú này' });
     }
 
@@ -93,11 +122,31 @@ exports.updateNote = async (req, res) => {
       { new: true, runValidators: true }
     ).populate('linkedPoint', 'name category');
 
+    await auditSuccess(req, {
+      event: 'note.updated',
+      module: 'note',
+      action: 'update',
+      target: { type: 'note', id: note._id, label: note.title || note.linkedPoint?.name || 'note' },
+      summary: `${req.user.email} đã cập nhật ghi chú`,
+      changes: {
+        linkedPoint: note.linkedPoint?._id || note.linkedPoint,
+        isPublic: note.isPublic,
+      },
+    });
+
     res.json({
       success: true,
       note,
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'note.updated',
+      module: 'note',
+      action: 'update',
+      target: { type: 'note', id: req.params.id, label: req.params.id },
+      summary: 'Cập nhật ghi chú thất bại',
+      error,
+    });
     res.status(400).json({ message: 'Cập nhật thất bại', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };
@@ -115,16 +164,40 @@ exports.deleteNote = async (req, res) => {
 
     // Only owner can delete
     if (note.user.toString() !== req.user._id.toString()) {
+      await auditDenied(req, {
+        event: 'note.deleted',
+        module: 'note',
+        action: 'delete',
+        target: { type: 'note', id: note._id, label: note.title || 'note' },
+        summary: `Từ chối xóa ghi chú ${note._id}`,
+        reason: 'NOT_OWNER',
+      });
       return res.status(403).json({ message: 'Bạn không có quyền xóa ghi chú này' });
     }
 
     await note.deleteOne();
+
+    await auditSuccess(req, {
+      event: 'note.deleted',
+      module: 'note',
+      action: 'delete',
+      target: { type: 'note', id: note._id, label: note.title || 'note' },
+      summary: `${req.user.email} đã xóa ghi chú`,
+    });
 
     res.json({
       success: true,
       message: 'Đã xóa ghi chú thành công',
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'note.deleted',
+      module: 'note',
+      action: 'delete',
+      target: { type: 'note', id: req.params.id, label: req.params.id },
+      summary: 'Xóa ghi chú thất bại',
+      error,
+    });
     res.status(500).json({ message: 'Lỗi server', ...(process.env.NODE_ENV === 'development' && { error: error.message }) });
   }
 };

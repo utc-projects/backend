@@ -1,4 +1,5 @@
 const Notification = require('../models/Notification');
+const { auditSuccess, auditDenied, auditFailed } = require('../services/auditLogService');
 
 // @desc    Get all notifications for current user
 // @route   GET /api/notifications
@@ -45,6 +46,14 @@ const markAsRead = async (req, res) => {
 
     // Check if user owns notification
     if (notification.recipient.toString() !== req.user._id.toString()) {
+      await auditDenied(req, {
+        event: 'notification.read',
+        module: 'notification',
+        action: 'mark_read',
+        target: { type: 'notification', id: notification._id, label: notification.type },
+        summary: `Từ chối đánh dấu đã đọc notification ${notification._id}`,
+        reason: 'NOT_OWNER',
+      });
       return res.status(401).json({
         success: false,
         message: 'Not authorized'
@@ -54,11 +63,27 @@ const markAsRead = async (req, res) => {
     notification.isRead = true;
     await notification.save();
 
+    await auditSuccess(req, {
+      event: 'notification.read',
+      module: 'notification',
+      action: 'mark_read',
+      target: { type: 'notification', id: notification._id, label: notification.type },
+      summary: `${req.user.email} đã đánh dấu đã đọc một thông báo`,
+    });
+
     res.status(200).json({
       success: true,
       data: notification
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'notification.read',
+      module: 'notification',
+      action: 'mark_read',
+      target: { type: 'notification', id: req.params.id, label: req.params.id },
+      summary: 'Đánh dấu đã đọc thông báo thất bại',
+      error,
+    });
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -72,16 +97,35 @@ const markAsRead = async (req, res) => {
 // @access  Private
 const markAllAsRead = async (req, res) => {
   try {
-    await Notification.updateMany(
+    const result = await Notification.updateMany(
       { recipient: req.user._id, isRead: false },
       { $set: { isRead: true } }
     );
+
+    await auditSuccess(req, {
+      event: 'notification.read_all',
+      module: 'notification',
+      action: 'mark_read_all',
+      target: { type: 'notification', label: req.user.email },
+      summary: `${req.user.email} đã đánh dấu tất cả thông báo là đã đọc`,
+      changes: {
+        affectedCount: result.modifiedCount || 0,
+      },
+    });
 
     res.status(200).json({
       success: true,
       message: 'All notifications marked as read'
     });
   } catch (error) {
+    await auditFailed(req, {
+      event: 'notification.read_all',
+      module: 'notification',
+      action: 'mark_read_all',
+      target: { type: 'notification', label: req.user?.email || '' },
+      summary: 'Đánh dấu tất cả thông báo là đã đọc thất bại',
+      error,
+    });
     res.status(500).json({
       success: false,
       message: 'Server Error',
